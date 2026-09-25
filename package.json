@@ -1,0 +1,16 @@
+{
+  "name": "brawl-impact",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -n laravel,game-server,frontend -c magenta,blue,green \"npm run dev:laravel\" \"npm run dev:game-server\" \"npm run dev:frontend\"",
+    "dev:laravel": "cd backend && php artisan serve --port=8000",
+    "dev:backend": "npm run dev:laravel",
+    "dev:game-server": "cd game-server && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "install:all": "cd backend && composer install && cd ../game-server && npm install && cd ../frontend && npm install"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

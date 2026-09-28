@@ -34,9 +34,9 @@ export const KNOCKBACK_CONFIG = {
 // --- Characters ---
 export const CHARACTER_STATS = {
     [CharacterType.KNIGHT]: {
-        maxHp: 0, // percentage system, no max HP
+        maxHp: 200,
         moveSpeed: 4.5,
-        jumpForce: -12,
+        jumpForce: -15.2,
         attackDamage: 12,
         knockbackPower: 1.2,
         abilityCooldown: 90, // 1.5 sec at 60fps
@@ -45,9 +45,9 @@ export const CHARACTER_STATS = {
         ultimateDamage: 18,
     },
     [CharacterType.MAGE]: {
-        maxHp: 0,
+        maxHp: 200,
         moveSpeed: 3.8,
-        jumpForce: -11,
+        jumpForce: -14.8,
         attackDamage: 10,
         knockbackPower: 1.0,
         abilityCooldown: 120, // 2 sec
@@ -56,20 +56,20 @@ export const CHARACTER_STATS = {
         ultimateDamage: 25,
     },
     [CharacterType.ASSASSIN]: {
-        maxHp: 0,
+        maxHp: 200,
         moveSpeed: 6.0,
-        jumpForce: -13,
+        jumpForce: -16.5,
         attackDamage: 8,
         knockbackPower: 0.8,
-        abilityCooldown: 60, // 1 sec
+        abilityCooldown: 75, // 1.25 sec
         ultimateCooldown: 420, // 7 sec
-        abilityDamage: 6,
+        abilityDamage: 8,
         ultimateDamage: 20,
     },
     [CharacterType.FIGHTER]: {
-        maxHp: 0,
+        maxHp: 200,
         moveSpeed: 4.0,
-        jumpForce: -11.5,
+        jumpForce: -15.0,
         attackDamage: 14,
         knockbackPower: 1.4,
         abilityCooldown: 75, // 1.25 sec
@@ -199,19 +199,19 @@ export const ATTACK_DEFS = {
         },
         [AttackType.ABILITY]: {
             type: AttackType.ABILITY,
-            damage: 6,
-            knockbackBase: 2,
+            damage: 8,
+            knockbackBase: 3,
             knockbackMultiplier: 0.08,
-            knockbackAngle: -Math.PI / 6,
-            hitboxWidth: 20,
-            hitboxHeight: 20,
-            hitboxOffsetX: 80,
-            hitboxOffsetY: 0,
-            duration: 15,
-            startupFrames: 3,
-            activeFrames: 5,
-            recoveryFrames: 7,
-            cooldown: 60,
+            knockbackAngle: -Math.PI / 8,
+            hitboxWidth: 24,
+            hitboxHeight: 24,
+            hitboxOffsetX: 35,
+            hitboxOffsetY: -8,
+            duration: 27,
+            startupFrames: 15,
+            activeFrames: 6,
+            recoveryFrames: 6,
+            cooldown: 75,
         },
         [AttackType.ULTIMATE]: {
             type: AttackType.ULTIMATE,
@@ -345,7 +345,7 @@ export const CHARACTER_COLORS = {
 export const CHARACTER_ABILITIES = {
     [CharacterType.KNIGHT]: { basic: 'Sword Slash', ability: 'Shield Charge', ultimate: 'Grand Slash' },
     [CharacterType.MAGE]: { basic: 'Staff Strike', ability: 'Fireball', ultimate: 'Meteor' },
-    [CharacterType.ASSASSIN]: { basic: 'Quick Slash', ability: 'Kunai Throw', ultimate: 'Shadow Step' },
+    [CharacterType.ASSASSIN]: { basic: 'Quick Slash', ability: 'Shuriken Throw', ultimate: 'Shadow Step' },
     [CharacterType.FIGHTER]: { basic: 'Punch', ability: 'Uppercut', ultimate: 'Ground Slam' },
 };
 //# sourceMappingURL=gameConfig.js.map

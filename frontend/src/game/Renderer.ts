@@ -10,6 +10,7 @@ import {
   AttackType,
   HitEffect,
   CharacterType,
+  Projectile,
 } from '@shared/types';
 import {
   PHYSICS,
@@ -38,6 +39,18 @@ interface FloatingText {
   maxLife: number;
 }
 
+interface DyingAnimation {
+  playerId: string;
+  character: CharacterType;
+  direction: Direction;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  timer: number;
+  maxTimer: number;
+}
+
 export class GameRenderer {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
@@ -58,6 +71,12 @@ export class GameRenderer {
   private assassinAirTicks: Map<string, number> = new Map();
   private assassinLandingTimers: Map<string, number> = new Map();
   private assassinPrevGrounded: Map<string, boolean> = new Map();
+  private assassinThrowFrames: HTMLImageElement[] = [];
+  private shurikenImg: HTMLImageElement;
+  private dyingAnimations: Map<string, DyingAnimation> = new Map();
+  private prevAlivePlayers: Map<string, boolean> = new Map();
+  private scaledImageCache: WeakMap<HTMLImageElement, HTMLCanvasElement> = new WeakMap();
+  private handleResize = () => this.resizeCanvas();
 
   // Arena layered assets (Super Smash Bros style)
   private bgImage: HTMLImageElement;
@@ -109,6 +128,17 @@ export class GameRenderer {
       this.assassinJumpFrames[idx] = img;
     }
 
+    // Preload Assassin throw animation frames (1 to 9)
+    for (let i = 1; i <= 9; i++) {
+      const img = new Image();
+      img.src = `/assets/assasin/assasin_throw/assasin_throw${i}.png`;
+      this.assassinThrowFrames.push(img);
+    }
+
+    // Preload Shuriken weapon image
+    this.shurikenImg = new Image();
+    this.shurikenImg.src = '/assets/assasin/weapon/shuriken_throw.png';
+
     // Generate background stars
     for (let i = 0; i < 60; i++) {
       this.bgStars.push({
@@ -119,7 +149,7 @@ export class GameRenderer {
       });
     }
 
-    window.addEventListener('resize', () => this.resizeCanvas());
+    window.addEventListener('resize', this.handleResize);
   }
 
   setLocalPlayerId(id: string): void {
@@ -133,6 +163,29 @@ export class GameRenderer {
 
   render(gameState: GameState): void {
     const { ctx, canvas } = this;
+
+    // Prune stale map keys for disconnected players to prevent memory leaks
+    if (this.assassinWalkTicks.size > Math.max(8, gameState.players.length * 2)) {
+      const activeIds = new Set(gameState.players.map((p) => p.id));
+      for (const id of this.assassinWalkTicks.keys()) {
+        if (!activeIds.has(id)) this.assassinWalkTicks.delete(id);
+      }
+      for (const id of this.assassinIdleTicks.keys()) {
+        if (!activeIds.has(id)) this.assassinIdleTicks.delete(id);
+      }
+      for (const id of this.assassinAirTicks.keys()) {
+        if (!activeIds.has(id)) this.assassinAirTicks.delete(id);
+      }
+      for (const id of this.assassinLandingTimers.keys()) {
+        if (!activeIds.has(id)) this.assassinLandingTimers.delete(id);
+      }
+      for (const id of this.assassinPrevGrounded.keys()) {
+        if (!activeIds.has(id)) this.assassinPrevGrounded.delete(id);
+      }
+      for (const id of this.prevAlivePlayers.keys()) {
+        if (!activeIds.has(id)) this.prevAlivePlayers.delete(id);
+      }
+    }
 
     // Calculate camera to center on arena
     this.updateCamera(gameState);
@@ -162,11 +215,22 @@ export class GameRenderer {
     // Draw arena
     this.drawArena();
 
-    // Draw players
+    // Check dying transitions
+    this.checkDyingTransitions(gameState);
+
+    // Draw alive players (only if hp > 0 and isAlive)
     for (const player of gameState.players) {
-      if (player.isAlive) {
+      if (player.isAlive && (player.hp === undefined || player.hp > 0)) {
         this.drawPlayer(player, gameState);
       }
+    }
+
+    // Draw dying players with fade-out animation
+    this.updateAndDrawDyingPlayers();
+
+    // Draw projectiles
+    if (gameState.projectiles && gameState.projectiles.length > 0) {
+      this.drawProjectiles(gameState.projectiles);
     }
 
     // Draw particles
@@ -194,7 +258,7 @@ export class GameRenderer {
   }
 
   private updateCamera(gameState: GameState): void {
-    const alivePlayers = gameState.players.filter((p) => p.isAlive);
+    const alivePlayers = gameState.players.filter((p) => p.isAlive && (p.hp === undefined || p.hp > 0));
 
     let targetX = this.arena.width / 2;
     let targetY = 460;
@@ -295,19 +359,16 @@ export class GameRenderer {
       ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
 
-    // Floating starlight / ambient magic motes
+    // Floating starlight / ambient magic motes (batched single draw call)
+    ctx.fillStyle = 'rgba(200, 220, 255, 0.35)';
+    ctx.beginPath();
     for (const star of this.bgStars) {
-      ctx.fillStyle = `rgba(200, 220, 255, ${star.alpha * 0.6})`;
-      ctx.beginPath();
-      ctx.arc(
-        ((star.x - this.cameraX * 0.15) % canvas.width + canvas.width) % canvas.width,
-        ((star.y - this.cameraY * 0.08) % canvas.height + canvas.height) % canvas.height,
-        star.size,
-        0,
-        Math.PI * 2,
-      );
-      ctx.fill();
+      const sx = ((star.x - this.cameraX * 0.15) % canvas.width + canvas.width) % canvas.width;
+      const sy = ((star.y - this.cameraY * 0.08) % canvas.height + canvas.height) % canvas.height;
+      ctx.moveTo(sx + star.size, sy);
+      ctx.arc(sx, sy, star.size, 0, Math.PI * 2);
     }
+    ctx.fill();
   }
 
   private drawArena(): void {
@@ -510,20 +571,53 @@ export class GameRenderer {
     ctx.globalAlpha = 1;
     ctx.restore();
 
-    // Nickname above player
-    ctx.fillStyle = player.id === this.localPlayerId ? '#c9a44e' : '#e6edf3';
-    ctx.font = '12px "MedievalSharp", cursive, serif';
+    // Overhead Health Bar & Nickname
+    ctx.font = 'bold 12px "MedievalSharp", cursive, serif';
     ctx.textAlign = 'center';
-    ctx.fillText(player.nickname, player.x, player.y - halfH - 22);
+    ctx.fillStyle = player.id === this.localPlayerId ? '#ffd700' : '#e6edf3';
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
+    ctx.shadowBlur = 4;
+    ctx.fillText(player.nickname, player.x, player.y - halfH - 26);
+    ctx.shadowBlur = 0;
 
-    // Damage percentage
-    const dmgColor = this.getDamageColor(player.damagePercent);
-    ctx.fillStyle = dmgColor;
-    ctx.font = 'bold 13px "MedievalSharp", cursive, serif';
-    ctx.fillText(`${Math.floor(player.damagePercent)}%`, player.x, player.y - halfH - 8);
+    // Overhead Health Bar (decreasing from 200 to 0)
+    const currentHp = Math.max(0, Math.ceil(player.hp ?? 200));
+    const maxHp = player.maxHp || 200;
+    const hpRatio = Math.max(0, Math.min(1, currentHp / maxHp));
+    const barW = 50;
+    const barH = 6;
+    const barX = player.x - barW / 2;
+    const barY = player.y - halfH - 20;
+
+    // Health bar background frame
+    ctx.fillStyle = 'rgba(10, 12, 16, 0.9)';
+    this.roundRect(barX - 1.5, barY - 1.5, barW + 3, barH + 3, 3);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(139, 115, 85, 0.6)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Health bar fill
+    const hpColor = this.getHpColor(currentHp, maxHp);
+    if (hpRatio > 0) {
+      ctx.fillStyle = hpColor;
+      ctx.shadowColor = hpColor;
+      ctx.shadowBlur = 6;
+      this.roundRect(barX, barY, barW * hpRatio, barH, 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+
+    // HP Text
+    ctx.fillStyle = hpColor;
+    ctx.font = 'bold 10px "MedievalSharp", cursive, serif';
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
+    ctx.shadowBlur = 3;
+    ctx.fillText(`${currentHp}/${maxHp}`, player.x, player.y - halfH - 7);
+    ctx.shadowBlur = 0;
 
     // Stocks indicator
-    this.drawStocks(player.x, player.y + halfH + 10, player.stocks);
+    this.drawStocks(player.x, player.y + halfH + 12, player.stocks);
   }
 
   private drawCharacterIcon(character: CharacterType, x: number, y: number): void {
@@ -548,11 +642,42 @@ export class GameRenderer {
     }
   }
 
+  private getOptimizedImage(img: HTMLImageElement): CanvasImageSource {
+    if (!img.complete || img.naturalWidth === 0) return img;
+    // Only downsample very large textures (> 512px) once to save GPU fill rate
+    if (img.naturalWidth <= 512 && img.naturalHeight <= 512) return img;
+
+    let cached = this.scaledImageCache.get(img);
+    if (!cached) {
+      cached = document.createElement('canvas');
+      const targetH = 264; // 3x draw height for super crisp display
+      const targetW = Math.max(1, Math.round(img.naturalWidth * (targetH / img.naturalHeight)));
+      cached.width = targetW;
+      cached.height = targetH;
+      const offCtx = cached.getContext('2d');
+      if (offCtx) {
+        offCtx.imageSmoothingEnabled = true;
+        offCtx.imageSmoothingQuality = 'high';
+        offCtx.drawImage(img, 0, 0, targetW, targetH);
+      }
+      this.scaledImageCache.set(img, cached);
+    }
+    return cached;
+  }
+
   private areAssassinFramesLoaded(): boolean {
     return (
       this.assassinWalkFrames.length > 0 &&
       this.assassinWalkFrames[0].complete &&
       this.assassinWalkFrames[0].naturalWidth > 0
+    );
+  }
+
+  private areAssassinThrowFramesLoaded(): boolean {
+    return (
+      this.assassinThrowFrames.length > 0 &&
+      this.assassinThrowFrames[0].complete &&
+      this.assassinThrowFrames[0].naturalWidth > 0
     );
   }
 
@@ -600,7 +725,18 @@ export class GameRenderer {
     // Select active animation frame based on motion state
     let frameImg: HTMLImageElement | undefined;
 
-    if (!player.isGrounded) {
+    // Check if performing Assassin Ability: Shuriken Throw
+    if (
+      player.isAttacking &&
+      player.attackType === AttackType.ABILITY &&
+      this.areAssassinThrowFramesLoaded()
+    ) {
+      const attackData = ATTACK_DEFS[CharacterType.ASSASSIN][AttackType.ABILITY];
+      const elapsed = attackData.duration - player.attackTimer;
+      // 9 frames over 27 ticks (3 ticks per frame). Frame 6 (idx 5) and Frame 7 (idx 6) are the throw releases!
+      const frameIndex = Math.min(8, Math.max(0, Math.floor(elapsed / 3)));
+      frameImg = this.assassinThrowFrames[frameIndex];
+    } else if (!player.isGrounded) {
       // --- AIRBORNE / JUMP ANIMATION ---
       this.assassinLandingTimers.set(player.id, 0);
       const airTicks = (this.assassinAirTicks.get(player.id) || 0) + 1;
@@ -676,8 +812,8 @@ export class GameRenderer {
       ctx.scale(-1, 1);
     }
 
-    // Draw active animation frame
-    ctx.drawImage(frameImg, drawX, drawY, drawWidth, drawHeight);
+    // Draw active animation frame (using pre-scaled cache for high-res assets)
+    ctx.drawImage(this.getOptimizedImage(frameImg), drawX, drawY, drawWidth, drawHeight);
 
     ctx.restore();
   }
@@ -731,6 +867,11 @@ export class GameRenderer {
   private drawAttackVisual(player: PlayerState): void {
     const { ctx } = this;
     if (!player.attackType) return;
+
+    // Assassin Ability is Shuriken Throw - animated via sprite and projectile, skip melee box
+    if (player.character === CharacterType.ASSASSIN && player.attackType === AttackType.ABILITY) {
+      return;
+    }
 
     const attackData = ATTACK_DEFS[player.character][player.attackType];
     const dirMult = player.direction === Direction.RIGHT ? 1 : -1;
@@ -798,13 +939,15 @@ export class GameRenderer {
     }
   }
 
-  private getDamageColor(percent: number): string {
-    if (percent < 30) return '#44ff44';
-    if (percent < 60) return '#ffff44';
-    if (percent < 100) return '#ff8844';
-    if (percent < 150) return '#ff4444';
-    return '#ff0000';
+  private getHpColor(hp: number, maxHp: number = 200): string {
+    const pct = (hp / maxHp) * 100;
+    if (pct > 60) return '#44d76b';
+    if (pct > 30) return '#c9a44e';
+    if (pct > 15) return '#e67e22';
+    return '#e74c3c';
   }
+
+
 
   private drawDeathBoundIndicators(_gameState: GameState): void {
     const { ctx, canvas } = this;
@@ -894,6 +1037,155 @@ export class GameRenderer {
     ctx.fillText('Preparing the halls for the victor...', canvas.width / 2, centerY + 44);
 
     ctx.restore();
+  }
+
+  private checkDyingTransitions(gameState: GameState): void {
+    for (const player of gameState.players) {
+      const wasAlive = this.prevAlivePlayers.get(player.id) ?? true;
+      const isNowDead = !player.isAlive || (player.hp !== undefined && player.hp <= 0);
+
+      if (wasAlive && isNowDead && !this.dyingAnimations.has(player.id)) {
+        this.dyingAnimations.set(player.id, {
+          playerId: player.id,
+          character: player.character,
+          direction: player.direction,
+          x: player.x,
+          y: player.y,
+          vx: player.vx * 0.25,
+          vy: -1.2,
+          timer: 75,
+          maxTimer: 75,
+        });
+
+        // Spawn death burst particles
+        for (let i = 0; i < 22; i++) {
+          this.particles.push({
+            x: player.x + (Math.random() - 0.5) * 28,
+            y: player.y + (Math.random() - 0.5) * 36,
+            vx: (Math.random() - 0.5) * 2.5,
+            vy: -Math.random() * 2.2 - 0.6,
+            life: 40,
+            maxLife: 40,
+            color: player.character === CharacterType.ASSASSIN ? '#4a5568' : '#e74c3c',
+            size: Math.random() * 3.5 + 1.5,
+          });
+        }
+      } else if (!isNowDead && player.isAlive) {
+        this.dyingAnimations.delete(player.id);
+      }
+
+      this.prevAlivePlayers.set(player.id, player.isAlive && (player.hp === undefined || player.hp > 0));
+    }
+  }
+
+  private updateAndDrawDyingPlayers(): void {
+    const { ctx } = this;
+    const halfW = PHYSICS.PLAYER_WIDTH / 2;
+    const halfH = PHYSICS.PLAYER_HEIGHT / 2;
+
+    for (const [playerId, anim] of this.dyingAnimations.entries()) {
+      const progress = anim.timer / anim.maxTimer; // 1.0 down to 0.0
+      const alpha = Math.max(0, Math.min(1, progress));
+
+      // Drift upward and slow horizontal momentum
+      anim.x += anim.vx;
+      anim.y += anim.vy;
+      anim.vx *= 0.94;
+      anim.vy *= 0.94;
+      anim.timer--;
+
+      ctx.save();
+      ctx.translate(anim.x, anim.y);
+      ctx.globalAlpha = alpha;
+
+      if (anim.character === CharacterType.ASSASSIN && this.areAssassinFramesLoaded()) {
+        const frameImg = this.assassinJumpFrames[7] || this.assassinWalkFrames[0];
+        const drawHeight = 88;
+        const drawWidth = 66;
+        const drawY = halfH - drawHeight * 0.988;
+        const drawX = -drawWidth / 2;
+
+        ctx.save();
+        if (anim.direction === Direction.LEFT) {
+          ctx.scale(-1, 1);
+        }
+        ctx.shadowColor = '#000000';
+        ctx.shadowBlur = 12;
+        ctx.drawImage(this.getOptimizedImage(frameImg), drawX, drawY, drawWidth, drawHeight);
+        ctx.restore();
+      } else {
+        const colors = CHARACTER_COLORS[anim.character];
+        ctx.fillStyle = colors.secondary;
+        this.roundRect(-halfW, -halfH, PHYSICS.PLAYER_WIDTH, PHYSICS.PLAYER_HEIGHT, 8);
+        ctx.fill();
+      }
+
+      ctx.restore();
+
+      // Dissolving spirit particles
+      if (Math.random() < 0.35 && anim.timer > 8) {
+        this.particles.push({
+          x: anim.x + (Math.random() - 0.5) * 22,
+          y: anim.y + (Math.random() - 0.5) * 28,
+          vx: (Math.random() - 0.5) * 1.0,
+          vy: -Math.random() * 1.4 - 0.3,
+          life: 25,
+          maxLife: 25,
+          color: 'rgba(200, 210, 225, 0.7)',
+          size: Math.random() * 3 + 1,
+        });
+      }
+
+      if (anim.timer <= 0) {
+        this.dyingAnimations.delete(playerId);
+      }
+    }
+  }
+
+  private drawProjectiles(projectiles: Projectile[]): void {
+    const { ctx } = this;
+
+    for (const proj of projectiles) {
+      ctx.save();
+      ctx.translate(proj.x, proj.y);
+      ctx.rotate(proj.rotation);
+
+      if (this.shurikenImg.complete && this.shurikenImg.naturalWidth > 0) {
+        const size = 26;
+        ctx.shadowColor = '#5dade2';
+        ctx.shadowBlur = 10;
+        ctx.drawImage(this.shurikenImg, -size / 2, -size / 2, size, size);
+      } else {
+        // Fallback ninja star
+        ctx.fillStyle = '#a0aec0';
+        ctx.shadowColor = '#5dade2';
+        ctx.shadowBlur = 8;
+        ctx.beginPath();
+        for (let i = 0; i < 4; i++) {
+          const angle = (i * Math.PI) / 2;
+          ctx.lineTo(Math.cos(angle) * 12, Math.sin(angle) * 12);
+          ctx.lineTo(Math.cos(angle + Math.PI / 4) * 4, Math.sin(angle + Math.PI / 4) * 4);
+        }
+        ctx.closePath();
+        ctx.fill();
+      }
+
+      ctx.restore();
+
+      // Spinning wind particle trail
+      if (Math.random() < 0.4) {
+        this.particles.push({
+          x: proj.x,
+          y: proj.y + (Math.random() - 0.5) * 6,
+          vx: -proj.vx * 0.12 + (Math.random() - 0.5) * 0.5,
+          vy: (Math.random() - 0.5) * 0.8,
+          life: 14,
+          maxLife: 14,
+          color: '#7fb3d5',
+          size: Math.random() * 2.5 + 1,
+        });
+      }
+    }
   }
 
   // --- Effects ---
@@ -999,6 +1291,6 @@ export class GameRenderer {
   }
 
   destroy(): void {
-    window.removeEventListener('resize', () => this.resizeCanvas());
+    window.removeEventListener('resize', this.handleResize);
   }
 }

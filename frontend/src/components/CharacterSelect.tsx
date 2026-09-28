@@ -3,7 +3,6 @@
 // ============================================================
 
 import { CharacterType } from '@shared/types';
-import { CHARACTER_ABILITIES } from '@shared/gameConfig';
 
 interface CharacterSelectProps {
   selected: CharacterType;

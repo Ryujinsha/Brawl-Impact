@@ -8,7 +8,6 @@ import {
   GameState,
   GamePhase,
   ArenaConfig,
-  Platform,
   PlayerInput,
   CharacterType,
   AttackType,
@@ -16,6 +15,7 @@ import {
   HitEffect,
   GameResult,
   AttackData,
+  Projectile,
 } from '../../../shared/types.js';
 import {
   PHYSICS,
@@ -40,6 +40,8 @@ export class ServerGameEngine {
   private respawnTimers: Map<string, number> = new Map();
   // Track which players have been hit by the current attack instance
   private attackHitTargets: Map<string, Set<string>> = new Map();
+  private projectiles: Projectile[] = [];
+  private shurikensSpawned: Map<string, Set<number>> = new Map();
 
   // Callbacks
   public onHit?: (effect: HitEffect) => void;
@@ -60,6 +62,8 @@ export class ServerGameEngine {
         vy: 0,
         direction: index % 2 === 0 ? Direction.RIGHT : Direction.LEFT,
         damagePercent: 0,
+        hp: stats.maxHp || 200,
+        maxHp: stats.maxHp || 200,
         isAlive: true,
         isGrounded: false,
         isAttacking: false,
@@ -131,6 +135,9 @@ export class ServerGameEngine {
       this.checkDeathBounds(player);
     }
 
+    // Process projectiles
+    this.updateProjectiles();
+
     // Check win condition
     this.checkWinCondition();
   }
@@ -162,6 +169,7 @@ export class ServerGameEngine {
         player.attackType = null;
         // Clear hit targets for this attack
         this.attackHitTargets.delete(player.id);
+        this.shurikensSpawned.delete(player.id);
       }
     }
   }
@@ -205,12 +213,31 @@ export class ServerGameEngine {
     player.attackTimer = attackData.duration;
     // Initialize hit targets tracking for this attack
     this.attackHitTargets.set(player.id, new Set());
+    this.shurikensSpawned.delete(player.id);
   }
 
   private processAttack(attacker: PlayerState): void {
     if (!attacker.attackType) return;
     const attackData = ATTACK_DEFS[attacker.character][attacker.attackType];
     const elapsed = attackData.duration - attacker.attackTimer;
+
+    // Special handling for Assassin Ability: Shuriken Throw
+    if (attacker.character === CharacterType.ASSASSIN && attacker.attackType === AttackType.ABILITY) {
+      const spawnedSet = this.shurikensSpawned.get(attacker.id) || new Set<number>();
+
+      // Shuriken releases during throw 6 (elapsed >= 15) and throw 7 (elapsed >= 18)
+      if (elapsed >= 15 && !spawnedSet.has(1)) {
+        spawnedSet.add(1);
+        this.shurikensSpawned.set(attacker.id, spawnedSet);
+        this.spawnShuriken(attacker, 0);
+      }
+      if (elapsed >= 18 && !spawnedSet.has(2)) {
+        spawnedSet.add(2);
+        this.shurikensSpawned.set(attacker.id, spawnedSet);
+        this.spawnShuriken(attacker, -0.4);
+      }
+      return; // Ranged projectile attack, skip melee hitbox
+    }
 
     // Only process hits during active frames
     if (elapsed < attackData.startupFrames || elapsed >= attackData.startupFrames + attackData.activeFrames) {
@@ -246,9 +273,135 @@ export class ServerGameEngine {
     }
   }
 
+  private spawnShuriken(attacker: PlayerState, vy: number): void {
+    const dirMult = attacker.direction === Direction.RIGHT ? 1 : -1;
+    const speed = 15;
+    const proj: Projectile = {
+      id: `${attacker.id}_shuriken_${this.tick}_${Math.random().toString(36).substring(2, 6)}`,
+      ownerId: attacker.id,
+      character: attacker.character,
+      type: 'SHURIKEN',
+      x: attacker.x + (attacker.direction === Direction.RIGHT ? 35 : -35),
+      y: attacker.y - 8,
+      vx: dirMult * speed,
+      vy,
+      width: 24,
+      height: 24,
+      damage: 8,
+      knockbackBase: 3,
+      knockbackMultiplier: 0.08,
+      knockbackAngle: -Math.PI / 8,
+      distanceTraveled: 0,
+      maxDistance: 650, // Long throw distance
+      rotation: 0,
+      rotationSpeed: dirMult * 0.35,
+    };
+    this.projectiles.push(proj);
+  }
+
+  private updateProjectiles(): void {
+    const nextProjectiles: Projectile[] = [];
+
+    for (const proj of this.projectiles) {
+      proj.x += proj.vx;
+      proj.y += proj.vy;
+      proj.distanceTraveled += Math.abs(proj.vx);
+      proj.rotation += proj.rotationSpeed;
+
+      // Check distance & arena bounds
+      if (
+        proj.distanceTraveled >= proj.maxDistance ||
+        proj.x < this.arena.deathBounds.left ||
+        proj.x > this.arena.deathBounds.right ||
+        proj.y < this.arena.deathBounds.top ||
+        proj.y > this.arena.deathBounds.bottom
+      ) {
+        continue;
+      }
+
+      // Check collision with enemy players
+      let hasHit = false;
+      const projHalfW = proj.width / 2;
+      const projHalfH = proj.height / 2;
+
+      for (const [targetId, target] of this.players.entries()) {
+        if (targetId === proj.ownerId || !target.isAlive || target.isInvincible) continue;
+
+        // AABB check
+        const targetHalfW = PHYSICS.PLAYER_WIDTH / 2;
+        const targetHalfH = PHYSICS.PLAYER_HEIGHT / 2;
+
+        if (
+          proj.x - projHalfW < target.x + targetHalfW &&
+          proj.x + projHalfW > target.x - targetHalfW &&
+          proj.y - projHalfH < target.y + targetHalfH &&
+          proj.y + projHalfH > target.y - targetHalfH
+        ) {
+          // Hit!
+          this.applyProjectileHit(proj, target);
+          hasHit = true;
+          break;
+        }
+      }
+
+      if (!hasHit) {
+        nextProjectiles.push(proj);
+      }
+    }
+
+    this.projectiles = nextProjectiles;
+  }
+
+  private applyProjectileHit(proj: Projectile, target: PlayerState): void {
+    // Apply damage to HP
+    target.hp = Math.max(0, target.hp - proj.damage);
+    target.damagePercent = Math.min(100, Math.floor(((target.maxHp - target.hp) / target.maxHp) * 100));
+
+    // Track damage dealt
+    const currentDamage = this.damageDealt.get(proj.ownerId) || 0;
+    this.damageDealt.set(proj.ownerId, currentDamage + proj.damage);
+
+    // Track last attacker
+    this.lastAttacker.set(target.id, proj.ownerId);
+
+    // Knockback
+    const dirMult = proj.vx >= 0 ? 1 : -1;
+    const knockbackMag = KNOCKBACK_CONFIG.BASE_KNOCKBACK + proj.knockbackBase +
+      (target.damagePercent * KNOCKBACK_CONFIG.KNOCKBACK_SCALING * proj.knockbackMultiplier * 10);
+    const knockbackX = Math.cos(proj.knockbackAngle) * knockbackMag * dirMult;
+    const knockbackY = Math.sin(proj.knockbackAngle) * knockbackMag;
+
+    target.vx = knockbackX;
+    target.vy = knockbackY;
+    target.hitStunTimer = Math.floor(
+      KNOCKBACK_CONFIG.HITSTUN_BASE + target.damagePercent * KNOCKBACK_CONFIG.HITSTUN_SCALING
+    );
+
+    // Hit effect
+    const effect: HitEffect = {
+      x: proj.x,
+      y: proj.y,
+      attackerId: proj.ownerId,
+      targetId: target.id,
+      damage: proj.damage,
+      knockbackX,
+      knockbackY,
+    };
+    this.hitEffects.push(effect);
+    if (this.onHit) {
+      this.onHit(effect);
+    }
+
+    // Check if target died from HP = 0
+    if (target.hp <= 0) {
+      this.eliminateStock(target);
+    }
+  }
+
   private applyHit(attacker: PlayerState, target: PlayerState, attackData: AttackData, dirMult: number): void {
-    // Apply damage
-    target.damagePercent += attackData.damage;
+    // Apply damage to HP
+    target.hp = Math.max(0, target.hp - attackData.damage);
+    target.damagePercent = Math.min(100, Math.floor(((target.maxHp - target.hp) / target.maxHp) * 100));
 
     // Track damage dealt
     const currentDamage = this.damageDealt.get(attacker.id) || 0;
@@ -287,6 +440,11 @@ export class ServerGameEngine {
 
     if (this.onHit) {
       this.onHit(effect);
+    }
+
+    // Check if target died from HP = 0
+    if (target.hp <= 0) {
+      this.eliminateStock(target);
     }
   }
 
@@ -398,6 +556,7 @@ export class ServerGameEngine {
 
   private eliminateStock(player: PlayerState): void {
     player.stocks--;
+    player.hp = 0;
 
     if (player.stocks <= 0) {
       // Player eliminated
@@ -427,6 +586,7 @@ export class ServerGameEngine {
     player.vx = 0;
     player.vy = 0;
     player.damagePercent = 0;
+    player.hp = player.maxHp || 200;
     player.isAlive = true;
     player.isAttacking = false;
     player.attackType = null;
@@ -490,6 +650,7 @@ export class ServerGameEngine {
     return {
       phase: this.phase,
       players: Array.from(this.players.values()),
+      projectiles: this.projectiles.map((p) => ({ ...p })),
       countdown: Math.ceil(this.countdown / GAME_CONFIG.TICK_RATE),
       winnerId: this.winnerId,
       arenaId: this.arena.id,

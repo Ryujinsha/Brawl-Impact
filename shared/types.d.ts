@@ -51,6 +51,8 @@ export interface PlayerState {
     vy: number;
     direction: Direction;
     damagePercent: number;
+    hp: number;
+    maxHp: number;
     isAlive: boolean;
     isGrounded: boolean;
     isAttacking: boolean;
@@ -71,6 +73,26 @@ export interface PlayerInfo {
     isReady: boolean;
     isHost: boolean;
 }
+export interface Projectile {
+    id: string;
+    ownerId: string;
+    character: CharacterType;
+    type: string;
+    x: number;
+    y: number;
+    vx: number;
+    vy: number;
+    width: number;
+    height: number;
+    damage: number;
+    knockbackBase: number;
+    knockbackMultiplier: number;
+    knockbackAngle: number;
+    distanceTraveled: number;
+    maxDistance: number;
+    rotation: number;
+    rotationSpeed: number;
+}
 export interface RoomState {
     code: string;
     players: PlayerInfo[];
@@ -81,6 +103,7 @@ export interface RoomState {
 export interface GameState {
     phase: GamePhase;
     players: PlayerState[];
+    projectiles?: Projectile[];
     countdown: number;
     winnerId: string | null;
     arenaId: string;

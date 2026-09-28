@@ -636,37 +636,47 @@ html, body, #root {
 
 .hud-top {
   position: absolute;
-  top: 14px;
+  top: 12px;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
   justify-content: center;
-  gap: 16px;
+  align-items: stretch;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  width: 100%;
+  max-width: min(1080px, calc(100vw - 28px));
+  padding: 0 12px;
   z-index: 10;
+  pointer-events: none;
 }
 
 .hud-player-card {
   display: flex;
   align-items: center;
-  gap: 8px;
-  background: rgba(22, 25, 28, 0.92);
+  gap: 10px;
+  background: linear-gradient(135deg, rgba(24, 28, 34, 0.94) 0%, rgba(16, 19, 24, 0.96) 100%);
   border: 1.5px solid var(--border-color);
   border-radius: var(--radius-sm);
-  padding: 6px 10px;
-  backdrop-filter: blur(10px);
-  width: 175px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-  transition: all 0.2s ease;
+  padding: 7px 12px;
+  backdrop-filter: blur(12px);
+  flex: 1 1 200px;
+  min-width: 190px;
+  max-width: 250px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  transition: all 0.25s ease;
+  pointer-events: auto;
 }
 
 .hud-player-card.eliminated {
   opacity: 0.35;
-  filter: grayscale(80%);
+  filter: grayscale(85%);
+  border-color: rgba(60, 60, 60, 0.5);
 }
 
 .hud-player-card.is-self {
   border-color: var(--accent-gold);
-  box-shadow: 0 0 12px rgba(201, 164, 78, 0.25), inset 0 0 8px rgba(201, 164, 78, 0.08);
+  box-shadow: 0 0 14px rgba(201, 164, 78, 0.35), inset 0 0 10px rgba(201, 164, 78, 0.08);
 }
 
 .hud-char-crest {
@@ -674,19 +684,20 @@ html, body, #root {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
-  background: rgba(36, 40, 44, 0.85);
-  border: 1px solid rgba(201, 164, 78, 0.3);
+  width: 36px;
+  height: 36px;
+  background: rgba(30, 34, 40, 0.9);
+  border: 1px solid rgba(201, 164, 78, 0.35);
   border-radius: var(--radius-sm);
   flex-shrink: 0;
+  box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.6);
 }
 
 .hud-player-body {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 4px;
   min-width: 0;
 }
 
@@ -694,67 +705,126 @@ html, body, #root {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  line-height: 1;
+  line-height: 1.1;
+  gap: 6px;
+}
+
+.hud-player-identity {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  flex: 1;
 }
 
 .hud-player-name {
   font-family: var(--font-medieval);
   font-size: 13px;
+  font-weight: 600;
   color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 75px;
+  min-width: 0;
 }
 
 .hud-tag-you {
   font-size: 9px;
-  color: var(--accent-gold);
-  border: 1px solid rgba(201, 164, 78, 0.5);
-  border-radius: 2px;
-  padding: 0 3px;
-  margin-left: 2px;
-  line-height: 1.1;
+  font-weight: 700;
+  color: #ffd700;
+  background: rgba(201, 164, 78, 0.2);
+  border: 1px solid rgba(201, 164, 78, 0.6);
+  border-radius: 3px;
+  padding: 1px 4px;
+  line-height: 1;
+  flex-shrink: 0;
+  letter-spacing: 0.5px;
 }
 
-.hud-damage-pct {
+.hud-hp-display {
   font-family: var(--font-medieval);
-  font-size: 14px;
-  font-weight: bold;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.hud-hp-current {
+  font-size: 13px;
+}
+
+.hud-hp-divider {
+  font-size: 10px;
+  opacity: 0.5;
+}
+
+.hud-hp-max {
+  font-size: 10px;
+  opacity: 0.65;
 }
 
 /* Health/Damage bar gauge */
 .hud-bar-container {
   width: 100%;
-  height: 6px;
-  background: rgba(10, 12, 14, 0.8);
-  border: 1px solid rgba(139, 115, 85, 0.3);
-  border-radius: 2px;
+  height: 8px;
+  background: rgba(8, 10, 14, 0.9);
+  border: 1px solid rgba(139, 115, 85, 0.35);
+  border-radius: 4px;
   overflow: hidden;
   position: relative;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.7);
 }
 
 .hud-bar-fill {
   height: 100%;
-  transition: width 0.15s ease-out, background-color 0.2s ease;
-  border-radius: 1px;
+  transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.25s ease;
+  border-radius: 3px;
+  position: relative;
+}
+
+.hud-bar-fill::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 40%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0) 100%);
+  border-radius: 3px 3px 0 0;
 }
 
 .hud-stocks-row {
   display: flex;
   align-items: center;
-  gap: 4px;
+  justify-content: space-between;
+  gap: 6px;
   font-size: 11px;
   line-height: 1;
+  margin-top: 1px;
+}
+
+.hud-shields-group {
+  display: flex;
+  align-items: center;
+  gap: 3px;
 }
 
 .stock-shield.active {
   color: var(--accent-gold);
-  filter: drop-shadow(0 0 2px rgba(201, 164, 78, 0.5));
+  filter: drop-shadow(0 0 2px rgba(201, 164, 78, 0.6));
 }
 
 .stock-shield.lost {
-  color: rgba(139, 115, 85, 0.3);
+  color: rgba(139, 115, 85, 0.25);
+}
+
+.hud-hp-percent-label {
+  font-family: var(--font-medieval);
+  font-size: 10px;
+  font-weight: 600;
+  opacity: 0.85;
 }
 
 .hud-fallen-label {
@@ -762,7 +832,17 @@ html, body, #root {
   font-size: 9px;
   color: #a84040;
   letter-spacing: 1px;
-  margin-left: auto;
+  font-weight: bold;
+}
+
+.hud-fallen-label.status-dying {
+  color: #e74c3c;
+  animation: pulse-dying 0.8s infinite alternate;
+}
+
+@keyframes pulse-dying {
+  0% { opacity: 0.6; }
+  100% { opacity: 1; text-shadow: 0 0 6px #e74c3c; }
 }
 
 /* Ability cooldowns - Bottom center */
@@ -1211,4 +1291,70 @@ html, body, #root {
 .rank-bronze td:first-child {
   color: #cd7f32;
   font-weight: bold;
+}
+
+/* Responsive adjustments for HUD and Arena */
+@media (max-width: 900px) {
+  .hud-top {
+    top: 8px;
+    gap: 8px 10px;
+    padding: 0 8px;
+  }
+  .hud-player-card {
+    flex: 1 1 170px;
+    min-width: 165px;
+    padding: 6px 10px;
+    gap: 8px;
+  }
+  .hud-char-crest {
+    width: 32px;
+    height: 32px;
+    font-size: 18px;
+  }
+  .hud-player-name {
+    font-size: 12px;
+  }
+  .hud-hp-display {
+    font-size: 11px;
+  }
+  .hud-hp-current {
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 600px) {
+  .hud-top {
+    top: 6px;
+    gap: 6px;
+  }
+  .hud-player-card {
+    flex: 1 1 140px;
+    min-width: 140px;
+    padding: 5px 8px;
+    gap: 6px;
+  }
+  .hud-char-crest {
+    width: 26px;
+    height: 26px;
+    font-size: 15px;
+  }
+  .hud-player-name {
+    font-size: 11px;
+  }
+  .hud-bar-container {
+    height: 6px;
+  }
+  .stock-shield {
+    font-size: 9px;
+  }
+  .controls-info {
+    bottom: 8px;
+    padding: 4px 8px;
+    gap: 6px;
+    font-size: 10px;
+  }
+  .key-badge {
+    padding: 1px 4px;
+    font-size: 9px;
+  }
 }

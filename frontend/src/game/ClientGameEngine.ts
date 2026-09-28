@@ -141,6 +141,7 @@ export class ClientGameEngine {
     return {
       ...this.currentState,
       players: interpolatedPlayers,
+      projectiles: this.currentState.projectiles || [],
     };
   }
 

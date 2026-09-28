@@ -68,5 +68,7 @@ This concurrently starts:
 |---------|-------|-----------------|----------|
 | **Knight** ⚔️ | Balanced | Shield Charge | Grand Slash |
 | **Mage** 🔮 | Ranged | Fireball | Meteor |
-| **Assassin** 🗡️ | Agility | Kunai Throw | Shadow Step |
+| **Assassin** 🗡️ | Agility | Shuriken Throw | Shadow Step |
 | **Fighter** 👊 | Brawler | Uppercut | Ground Slam |
+
+

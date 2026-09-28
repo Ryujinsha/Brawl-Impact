@@ -60,6 +60,7 @@ export class SocketHandler {
         socket.emit(ServerEvent.ROOM_CREATED, roomState);
         console.log(`[Room] Created: ${room.code} by ${payload.nickname}`);
       } catch (err) {
+        console.error('[Room] Failed to create room:', err);
         socket.emit(ServerEvent.ERROR, { message: 'Failed to create room' });
       }
     });
@@ -81,6 +82,7 @@ export class SocketHandler {
         });
         console.log(`[Room] ${payload.nickname} joined ${room.code}`);
       } catch (err) {
+        console.error('[Room] Failed to join room:', err);
         socket.emit(ServerEvent.ERROR, { message: 'Failed to join room' });
       }
     });
@@ -154,7 +156,7 @@ export class SocketHandler {
   private handleLeaveRoom(socket: Socket): void {
     const result = this.roomManager.leaveRoom(socket.id);
     if (result) {
-      const { room, wasHost, newHostId } = result;
+      const { room, newHostId } = result;
       socket.leave(room.code);
 
       if (room.players.size > 0) {

@@ -17,12 +17,12 @@ const CHAR_ICONS: Record<CharacterType, string> = {
   [CharacterType.FIGHTER]: '👊',
 };
 
-function getDamageColor(percent: number): string {
-  if (percent < 30) return '#6b9a6b';
-  if (percent < 60) return '#c9a44e';
-  if (percent < 100) return '#c87a3a';
-  if (percent < 150) return '#a84040';
-  return '#cc2222';
+function getHpColor(hp: number, maxHp: number = 200): string {
+  const pct = (hp / maxHp) * 100;
+  if (pct > 60) return '#44d76b';
+  if (pct > 30) return '#c9a44e';
+  if (pct > 15) return '#e67e22';
+  return '#e74c3c';
 }
 
 export function GameHUD({ gameState, localPlayerId }: GameHUDProps) {
@@ -35,8 +35,10 @@ export function GameHUD({ gameState, localPlayerId }: GameHUDProps) {
       <div className="hud-top">
         {gameState.players.map((player) => {
           const isEliminated = !player.isAlive && player.stocks <= 0;
-          const damageColor = getDamageColor(player.damagePercent);
-          const barWidth = Math.min(100, (player.damagePercent / 150) * 100);
+          const currentHp = Math.max(0, Math.ceil(player.hp ?? 200));
+          const maxHp = player.maxHp || 200;
+          const hpColor = getHpColor(currentHp, maxHp);
+          const barWidth = Math.max(0, Math.min(100, (currentHp / maxHp) * 100));
 
           return (
             <div
@@ -46,34 +48,48 @@ export function GameHUD({ gameState, localPlayerId }: GameHUDProps) {
               <div className="hud-char-crest">{CHAR_ICONS[player.character]}</div>
               <div className="hud-player-body">
                 <div className="hud-player-header">
-                  <span className="hud-player-name">{player.nickname}</span>
-                  {player.id === localPlayerId && <span className="hud-tag-you">Thou</span>}
-                  <span className="hud-damage-pct" style={{ color: damageColor }}>
-                    {Math.floor(player.damagePercent)}%
-                  </span>
+                  <div className="hud-player-identity">
+                    <span className="hud-player-name" title={player.nickname}>{player.nickname}</span>
+                    {player.id === localPlayerId && <span className="hud-tag-you">YOU</span>}
+                  </div>
+                  <div className="hud-hp-display" style={{ color: hpColor }}>
+                    <span className="hud-hp-current">{currentHp}</span>
+                    <span className="hud-hp-divider">/</span>
+                    <span className="hud-hp-max">{maxHp}</span>
+                  </div>
                 </div>
-                {/* Visual health/damage gauge bar */}
+                {/* Visual health gauge bar (decreasing from 200 to 0) */}
                 <div className="hud-bar-container">
                   <div
                     className="hud-bar-fill"
                     style={{
                       width: `${barWidth}%`,
-                      backgroundColor: damageColor,
-                      boxShadow: `0 0 6px ${damageColor}`,
+                      backgroundColor: hpColor,
+                      boxShadow: `0 0 10px ${hpColor}`,
                     }}
                   />
                 </div>
-                {/* Stock life shields */}
+                {/* Stock life shields and status */}
                 <div className="hud-stocks-row">
-                  {Array.from({ length: GAME_CONFIG.STOCKS_PER_PLAYER }).map((_, i) => (
-                    <span
-                      key={i}
-                      className={`stock-shield ${i >= player.stocks ? 'lost' : 'active'}`}
-                    >
-                      {i >= player.stocks ? '⛊' : '🛡'}
+                  <div className="hud-shields-group">
+                    {Array.from({ length: GAME_CONFIG.STOCKS_PER_PLAYER }).map((_, i) => (
+                      <span
+                        key={i}
+                        className={`stock-shield ${i >= player.stocks ? 'lost' : 'active'}`}
+                      >
+                        {i >= player.stocks ? '⛊' : '🛡'}
+                      </span>
+                    ))}
+                  </div>
+                  {isEliminated ? (
+                    <span className="hud-fallen-label">FALLEN</span>
+                  ) : currentHp <= 0 ? (
+                    <span className="hud-fallen-label status-dying">DYING</span>
+                  ) : (
+                    <span className="hud-hp-percent-label" style={{ color: hpColor }}>
+                      {Math.round(barWidth)}%
                     </span>
-                  ))}
-                  {isEliminated && <span className="hud-fallen-label">FALLEN</span>}
+                  )}
                 </div>
               </div>
             </div>

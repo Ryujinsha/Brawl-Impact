@@ -3,7 +3,7 @@
 // ============================================================
 
 import { useEffect, useRef, useState } from 'react';
-import { GameState, GamePhase } from '@shared/types';
+import { GameState } from '@shared/types';
 import { ClientGameEngine } from '../game/ClientGameEngine';
 import { GameHUD } from '../components/GameHUD';
 

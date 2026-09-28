@@ -9,7 +9,7 @@ A 2D multiplayer platform fighter with a medieval theme, built with **React**, *
 Brawl Impact uses a hybrid architecture designed for competitive real-time web gaming:
 
 1. **Laravel Backend (`/backend`)**:
-   - Built with **Laravel 11+** (PHP 8.3) and SQLite database.
+   - Built with **Laravel 13+** (PHP 8.3) and SQLite database.
    - Manages REST API endpoints:
      - `GET /api/health` — Server health check
      - `GET /api/rooms` & `POST /api/rooms` — War Chamber room lobby management

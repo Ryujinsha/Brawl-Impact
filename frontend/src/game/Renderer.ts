@@ -75,6 +75,13 @@ export class GameRenderer {
   private assassinUltimateFrames: HTMLImageElement[] = [];
   private assassinAttackFrames: HTMLImageElement[] = [];
   private shurikenImg: HTMLImageElement;
+  private knightWalkFrames: HTMLImageElement[] = [];
+  private knightIdleFrames: HTMLImageElement[] = [];
+  private knightWalkTicks: Map<string, number> = new Map();
+  private knightIdleTicks: Map<string, number> = new Map();
+  private knightAirTicks: Map<string, number> = new Map();
+  private knightLandingTimers: Map<string, number> = new Map();
+  private knightPrevGrounded: Map<string, boolean> = new Map();
   private showGuideLines: boolean = true;
   private dyingAnimations: Map<string, DyingAnimation> = new Map();
   private prevAlivePlayers: Map<string, boolean> = new Map();
@@ -156,6 +163,22 @@ export class GameRenderer {
     this.shurikenImg = new Image();
     this.shurikenImg.src = '/assets/assasin/weapon/shuriken_throw.png';
 
+    // Preload Knight walk animation frames (1, 2, 3, 4, 5, 6, 7, 9)
+    const knightWalkIndices = [1, 2, 3, 4, 5, 6, 7, 9];
+    for (const idx of knightWalkIndices) {
+      const img = new Image();
+      img.src = `/assets/knight/knight_walk/knight_walk${idx}.png`;
+      this.knightWalkFrames.push(img);
+    }
+
+    // Preload Knight idle animation frames (1, 2, 4, 5, 6, 7, 8, 9)
+    const knightIdleIndices = [1, 2,3,4,5];
+    for (const idx of knightIdleIndices) {
+      const img = new Image();
+      img.src = `/assets/knight/knight_idle/knight_idle${idx}.png`;
+      this.knightIdleFrames.push(img);
+    }
+
     // Generate background stars
     for (let i = 0; i < 60; i++) {
       this.bgStars.push({
@@ -206,6 +229,21 @@ export class GameRenderer {
       }
       for (const id of this.assassinPrevGrounded.keys()) {
         if (!activeIds.has(id)) this.assassinPrevGrounded.delete(id);
+      }
+      for (const id of this.knightWalkTicks.keys()) {
+        if (!activeIds.has(id)) this.knightWalkTicks.delete(id);
+      }
+      for (const id of this.knightIdleTicks.keys()) {
+        if (!activeIds.has(id)) this.knightIdleTicks.delete(id);
+      }
+      for (const id of this.knightAirTicks.keys()) {
+        if (!activeIds.has(id)) this.knightAirTicks.delete(id);
+      }
+      for (const id of this.knightLandingTimers.keys()) {
+        if (!activeIds.has(id)) this.knightLandingTimers.delete(id);
+      }
+      for (const id of this.knightPrevGrounded.keys()) {
+        if (!activeIds.has(id)) this.knightPrevGrounded.delete(id);
       }
       for (const id of this.prevAlivePlayers.keys()) {
         if (!activeIds.has(id)) this.prevAlivePlayers.delete(id);
@@ -637,6 +675,8 @@ export class GameRenderer {
     // Player body
     if (player.character === CharacterType.ASSASSIN && this.areAssassinFramesLoaded()) {
       this.drawAssassin(player);
+    } else if (player.character === CharacterType.KNIGHT && this.areKnightFramesLoaded()) {
+      this.drawKnight(player);
     } else {
       this.drawDefaultPlayerBody(player, colors, halfW, halfH);
     }
@@ -740,6 +780,14 @@ export class GameRenderer {
       this.scaledImageCache.set(img, cached);
     }
     return cached;
+  }
+
+  private areKnightFramesLoaded(): boolean {
+    return (
+      this.knightWalkFrames.length > 0 &&
+      this.knightWalkFrames[0].complete &&
+      this.knightWalkFrames[0].naturalWidth > 0
+    );
   }
 
   private areAssassinFramesLoaded(): boolean {
@@ -937,6 +985,144 @@ export class GameRenderer {
     ctx.restore();
   }
 
+  private drawKnight(player: PlayerState): void {
+    const { ctx } = this;
+    const halfH = PHYSICS.PLAYER_HEIGHT / 2;
+
+    // Track grounded state transitions to detect landing impact
+    const wasGrounded = this.knightPrevGrounded.get(player.id) ?? true;
+    this.knightPrevGrounded.set(player.id, player.isGrounded);
+
+    let landingTimer = this.knightLandingTimers.get(player.id) || 0;
+    if (!wasGrounded && player.isGrounded) {
+      // Just hit the ground: show landing crouch for ~7 frames (116ms)
+      landingTimer = 7;
+    }
+    if (landingTimer > 0) {
+      landingTimer--;
+      this.knightLandingTimers.set(player.id, landingTimer);
+    }
+
+    // Soft ground shadow beneath character feet (only when grounded)
+    if (player.isGrounded) {
+      ctx.save();
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+      ctx.beginPath();
+      ctx.ellipse(0, halfH - 1, 20, 5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // Select active animation frame based on motion state
+    let frameImg: HTMLImageElement | undefined;
+
+    if (player.isAttacking) {
+      // Dynamic combat stance when performing attacks
+      if (player.attackType === AttackType.ULTIMATE) {
+        // Ultimate power strike pose (walk frame 7 or 3)
+        frameImg = this.knightWalkFrames[6] || this.knightWalkFrames[2];
+      } else if (player.attackType === AttackType.ABILITY) {
+        // Shield charge pose (walk frame 2 or 3)
+        frameImg = this.knightWalkFrames[1] || this.knightWalkFrames[2];
+      } else {
+        // Basic sword slash pose (walk frame 3)
+        frameImg = this.knightWalkFrames[2] || this.knightWalkFrames[0];
+      }
+    } else if (!player.isGrounded) {
+      // --- AIRBORNE / JUMP ANIMATION ---
+      this.knightLandingTimers.set(player.id, 0);
+      const airTicks = (this.knightAirTicks.get(player.id) || 0) + 1;
+      this.knightAirTicks.set(player.id, airTicks);
+
+      if (airTicks <= 4 && player.vy < -7) {
+        // Initial explosive spring / liftoff
+        frameImg = this.knightWalkFrames[2] || this.knightWalkFrames[0];
+      } else if (player.vy < 0) {
+        // Mid-air ascent toward apex
+        frameImg = this.knightWalkFrames[6] || this.knightWalkFrames[2];
+      } else if (player.vy < 7.5) {
+        // Mid-air apex crest
+        frameImg = this.knightWalkFrames[4] || this.knightWalkFrames[3];
+      } else {
+        // Falling downward plunge
+        frameImg = this.knightWalkFrames[2] || this.knightWalkFrames[1];
+      }
+    } else {
+      // --- GROUNDED ANIMATION ---
+      this.knightAirTicks.set(player.id, 0);
+      const isMoving = Math.abs(player.vx) > 0.3;
+
+      if (isMoving) {
+        // Cancel landing animation if player immediately runs
+        this.knightLandingTimers.set(player.id, 0);
+
+        // WALKING: 8-frame sequence
+        let walkTick = this.knightWalkTicks.get(player.id) || 0;
+        const animSpeed = Math.min(Math.max(Math.abs(player.vx) * 0.04, 0.14), 0.34);
+        walkTick = (walkTick + animSpeed) % this.knightWalkFrames.length;
+        this.knightWalkTicks.set(player.id, walkTick);
+
+        const frameIndex = Math.floor(walkTick) % this.knightWalkFrames.length;
+        frameImg = this.knightWalkFrames[frameIndex];
+      } else if (landingTimer > 0) {
+        // LANDING IMPACT: crouch recovery pose
+        frameImg = this.knightWalkFrames[1] || this.knightIdleFrames[0];
+      } else {
+        // IDLE: Calm, rhythmic breathing animation cycling across 8 frames (~2.4s full cycle)
+        let idleTick = (this.knightIdleTicks.get(player.id) || 0) + 1;
+        this.knightIdleTicks.set(player.id, idleTick);
+
+        // Cycle idle frames every 18 render ticks (~300ms per frame, full breath cycle ~2.4s)
+        const idleIndex = Math.floor(idleTick / 18) % Math.max(1, this.knightIdleFrames.length);
+        frameImg = this.knightIdleFrames[idleIndex];
+      }
+    }
+
+    // Safety fallback if selected frame is not yet fully loaded
+    if (!frameImg || !frameImg.complete || frameImg.naturalWidth === 0) {
+      frameImg = this.knightIdleFrames[0] || this.knightWalkFrames[0];
+    }
+    if (!frameImg || !frameImg.complete || frameImg.naturalWidth === 0) {
+      return;
+    }
+
+    // Sprite dimensions (original frame 1536x2048, aspect ratio 0.75)
+    // Knight stands slightly taller and sturdier than assassin
+    const drawHeight = 78;
+    const drawWidth = 58;
+    // Align sprite feet with player's ground contact (halfH = 30)
+    // Feet are at ~99.5% of image height
+    const drawY = halfH - drawHeight * 0.995;
+    const drawX = -drawWidth / 2;
+
+    const currentDrawWidth = frameImg.naturalHeight > 0
+      ? Math.round(frameImg.naturalWidth * (drawHeight / frameImg.naturalHeight))
+      : drawWidth;
+
+    ctx.save();
+
+    // Flip horizontally when facing Direction.LEFT
+    // Default sprite frames face Direction.RIGHT; flipping symmetrically on the X-axis
+    if (player.direction === Direction.LEFT) {
+      ctx.scale(-1, 1);
+    }
+
+    // Radiant power afterimage for Knight Ultimate
+    if (player.isAttacking && player.attackType === AttackType.ULTIMATE) {
+      ctx.save();
+      ctx.globalAlpha = 0.32;
+      ctx.drawImage(this.getOptimizedImage(frameImg), drawX - 10, drawY, currentDrawWidth, drawHeight);
+      ctx.globalAlpha = 0.16;
+      ctx.drawImage(this.getOptimizedImage(frameImg), drawX - 20, drawY, currentDrawWidth, drawHeight);
+      ctx.restore();
+    }
+
+    // Draw active animation frame (using pre-scaled cache for high-res assets)
+    ctx.drawImage(this.getOptimizedImage(frameImg), drawX, drawY, currentDrawWidth, drawHeight);
+
+    ctx.restore();
+  }
+
   private drawDefaultPlayerBody(
     player: PlayerState,
     colors: (typeof CHARACTER_COLORS)[CharacterType],
@@ -1017,6 +1203,8 @@ export class GameRenderer {
     } else if (player.attackType === AttackType.ULTIMATE) {
       attackColor = player.character === CharacterType.ASSASSIN
         ? 'rgba(168, 85, 247, 0.75)'
+        : player.character === CharacterType.KNIGHT
+        ? 'rgba(235, 180, 50, 0.85)'
         : 'rgba(255, 200, 50, 0.7)';
     }
 
@@ -1224,7 +1412,7 @@ export class GameRenderer {
             vy: -Math.random() * 2.2 - 0.6,
             life: 40,
             maxLife: 40,
-            color: player.character === CharacterType.ASSASSIN ? '#4a5568' : '#e74c3c',
+            color: player.character === CharacterType.ASSASSIN ? '#4a5568' : player.character === CharacterType.KNIGHT ? '#4e6a73' : '#e74c3c',
             size: Math.random() * 3.5 + 1.5,
           });
         }
@@ -1261,6 +1449,21 @@ export class GameRenderer {
         const drawHeight = 88;
         const drawWidth = 66;
         const drawY = halfH - drawHeight * 0.988;
+        const drawX = -drawWidth / 2;
+
+        ctx.save();
+        if (anim.direction === Direction.LEFT) {
+          ctx.scale(-1, 1);
+        }
+        ctx.shadowColor = '#000000';
+        ctx.shadowBlur = 12;
+        ctx.drawImage(this.getOptimizedImage(frameImg), drawX, drawY, drawWidth, drawHeight);
+        ctx.restore();
+      } else if (anim.character === CharacterType.KNIGHT && this.areKnightFramesLoaded()) {
+        const frameImg = this.knightIdleFrames[0] || this.knightWalkFrames[0];
+        const drawHeight = 78;
+        const drawWidth = 58;
+        const drawY = halfH - drawHeight * 0.995;
         const drawX = -drawWidth / 2;
 
         ctx.save();

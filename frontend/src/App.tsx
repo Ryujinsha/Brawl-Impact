@@ -1,20 +1,21 @@
 // ============================================================
 // Brawl Impact - Main Application
 // State machine managing game flow:
-// MENU ──┬──> TRAINING (Local single-player)
-//        └──> ROOM (1v1 Duel or FFA) ──> PLAYING ──> RESULT
+// MENU ──> CHARACTER_SELECT ──┬──> TRAINING (Local single-player)
+//                             └──> ROOM (1v1 Duel or FFA) ──> PLAYING ──> RESULT
 // ============================================================
 
 import { useState, useEffect, useCallback } from 'react';
 import { GamePhase, RoomState, GameState, GameResult, CharacterType, GameMode } from '@shared/types';
 import { socketClient } from './network/SocketClient';
 import { MainMenu } from './pages/MainMenu';
+import { CharacterSelectScreen } from './pages/CharacterSelectScreen';
 import { RoomLobby } from './pages/RoomLobby';
 import { GameArena } from './pages/GameArena';
 import { ResultScreen } from './pages/ResultScreen';
 import { TrainingArena } from './pages/TrainingArena';
 
-type AppPhase = 'CONNECTING' | 'MENU' | 'TRAINING' | 'ROOM' | 'PLAYING' | 'RESULT';
+type AppPhase = 'CONNECTING' | 'MENU' | 'CHARACTER_SELECT' | 'TRAINING' | 'ROOM' | 'PLAYING' | 'RESULT';
 
 export default function App() {
   const [phase, setPhase] = useState<AppPhase>('CONNECTING');
@@ -25,9 +26,23 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
 
-  // Training mode parameters
-  const [trainingChar, setTrainingChar] = useState<CharacterType>(CharacterType.KNIGHT);
-  const [trainingNick, setTrainingNick] = useState<string>('Warrior');
+  // Selected mode and champion parameters
+  const [selectedMode, setSelectedMode] = useState<GameMode | 'training'>('1v1');
+  const [isJoiningRoom, setIsJoiningRoom] = useState(false);
+  const [joinRoomCode, setJoinRoomCode] = useState('');
+
+  const [chosenCharacter, setChosenCharacter] = useState<CharacterType>(() => {
+    const saved = localStorage.getItem('brawl_player_character') as CharacterType;
+    return saved && Object.values(CharacterType).includes(saved) ? saved : CharacterType.KNIGHT;
+  });
+
+  const [chosenNickname, setChosenNickname] = useState<string>(() => {
+    return localStorage.getItem('brawl_player_nickname') || 'Warrior';
+  });
+
+  // Training parameters
+  const [trainingChar, setTrainingChar] = useState<CharacterType>(chosenCharacter);
+  const [trainingNick, setTrainingNick] = useState<string>(chosenNickname);
 
   // Connect to game server
   useEffect(() => {
@@ -45,7 +60,7 @@ export default function App() {
 
     const unsubError = socketClient.onError((data) => {
       setError(data.message);
-      setTimeout(() => setError(null), 3000);
+      setTimeout(() => setError(null), 3500);
     });
 
     // Room created
@@ -72,7 +87,6 @@ export default function App() {
     let gameOverTimeout: ReturnType<typeof setTimeout> | null = null;
     const unsubGameOver = socketClient.onGameOver((result) => {
       setGameResult(result);
-      // Allow players to celebrate the victory banner in the arena before showing result summary
       gameOverTimeout = setTimeout(() => {
         setPhase('RESULT');
       }, 2500);
@@ -97,20 +111,51 @@ export default function App() {
     };
   }, []);
 
-  // --- Handlers ---
+  // --- Navigation Handlers ---
 
-  const handleRoomCreated = useCallback((_mode: GameMode) => {
-    // Handled by socket onRoomCreated
+  const handleSelectMode = useCallback((mode: GameMode | 'training', isJoining = false, roomCode = '') => {
+    setSelectedMode(mode);
+    setIsJoiningRoom(isJoining);
+    setJoinRoomCode(roomCode);
+    setPhase('CHARACTER_SELECT');
   }, []);
 
-  const handleRoomJoined = useCallback(() => {
-    // Handled by socket onRoomState
-  }, []);
+  const handleConfirmCharacter = useCallback((character: CharacterType, nickname: string, code?: string) => {
+    setChosenCharacter(character);
+    setChosenNickname(nickname);
 
-  const handleStartTraining = useCallback((character: CharacterType, nickname: string) => {
-    setTrainingChar(character);
-    setTrainingNick(nickname);
-    setPhase('TRAINING');
+    // If changing character while already inside a room
+    if (roomState) {
+      socketClient.selectCharacter(character);
+      setPhase('ROOM');
+      return;
+    }
+
+    if (selectedMode === 'training') {
+      setTrainingChar(character);
+      setTrainingNick(nickname);
+      setPhase('TRAINING');
+      return;
+    }
+
+    const targetCode = code || joinRoomCode;
+    if (isJoiningRoom || targetCode) {
+      socketClient.joinRoom(targetCode, nickname, character);
+    } else {
+      socketClient.createRoom(nickname, character, selectedMode as GameMode);
+    }
+  }, [selectedMode, isJoiningRoom, joinRoomCode, roomState]);
+
+  const handleBackFromCharSelect = useCallback(() => {
+    if (roomState) {
+      setPhase('ROOM');
+    } else {
+      setPhase('MENU');
+    }
+  }, [roomState]);
+
+  const handleChangeCharacterFromLobby = useCallback(() => {
+    setPhase('CHARACTER_SELECT');
   }, []);
 
   const handleExitTraining = useCallback(() => {
@@ -125,7 +170,6 @@ export default function App() {
   const handleReturnToLobby = useCallback(() => {
     setGameResult(null);
     setGameState(null);
-    // Transition to ROOM will occur via server room:state broadcast
   }, []);
 
   const handleReturnToMainMenu = useCallback(() => {
@@ -148,22 +192,33 @@ export default function App() {
 
       {/* Phase 1: Connecting Screen */}
       {phase === 'CONNECTING' && (
-        <div className="main-menu">
-          <h1 className="game-title">BRAWL IMPACT</h1>
-          <p className="game-subtitle" style={{ marginTop: 16 }}>Summoning the realm...</p>
+        <div className="main-menu-cinematic">
+          <div className="main-menu-left-brand" style={{ margin: 'auto' }}>
+            <h1 className="medieval-game-title">BRAWL IMPACT</h1>
+            <p className="game-subtitle" style={{ marginTop: 16 }}>Summoning the realm...</p>
+          </div>
         </div>
       )}
 
       {/* Phase 2: Main Menu */}
       {phase === 'MENU' && (
-        <MainMenu
-          onRoomCreated={handleRoomCreated}
-          onRoomJoined={handleRoomJoined}
-          onStartTraining={handleStartTraining}
+        <MainMenu onSelectMode={handleSelectMode} />
+      )}
+
+      {/* Phase 3: Dedicated Character Selection Screen */}
+      {phase === 'CHARACTER_SELECT' && (
+        <CharacterSelectScreen
+          mode={selectedMode}
+          initialCharacter={chosenCharacter}
+          initialNickname={chosenNickname}
+          isJoiningRoom={isJoiningRoom}
+          joinRoomCode={joinRoomCode}
+          onConfirm={handleConfirmCharacter}
+          onBack={handleBackFromCharSelect}
         />
       )}
 
-      {/* Phase 3: Local Offline Training Mode */}
+      {/* Phase 4: Local Offline Training Mode */}
       {phase === 'TRAINING' && (
         <TrainingArena
           playerCharacter={trainingChar}
@@ -172,16 +227,17 @@ export default function App() {
         />
       )}
 
-      {/* Phase 4: Room Lobby (1v1 Duel or FFA) */}
+      {/* Phase 5: Room Lobby (1v1 Duel or FFA) */}
       {phase === 'ROOM' && roomState && (
         <RoomLobby
           roomState={roomState}
           localPlayerId={localPlayerId}
           onLeave={handleLeaveRoom}
+          onChangeCharacter={handleChangeCharacterFromLobby}
         />
       )}
 
-      {/* Phase 5: Multiplayer Match (1v1 or FFA) */}
+      {/* Phase 6: Multiplayer Match (1v1 or FFA) */}
       {phase === 'PLAYING' && gameState && (
         <GameArena
           localPlayerId={localPlayerId}
@@ -189,7 +245,7 @@ export default function App() {
         />
       )}
 
-      {/* Phase 6: Result Screen */}
+      {/* Phase 7: Result Screen */}
       {phase === 'RESULT' && gameResult && (
         <ResultScreen
           result={gameResult}

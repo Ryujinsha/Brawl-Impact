@@ -34,7 +34,7 @@ export const GAME_MODES = {
 };
 // --- Physics ---
 export const PHYSICS = {
-    GRAVITY: 0.6,
+    GRAVITY: 0.7,
     MAX_FALL_SPEED: 15,
     FRICTION_GROUND: 0.8,
     FRICTION_AIR: 0.95,
@@ -51,7 +51,7 @@ export const GAME_CONFIG = {
     STOCKS_PER_PLAYER: 3,
     INVINCIBLE_FRAMES: 60, // 1 second of invincibility after respawn
     HIT_STUN_MULTIPLIER: 0.04, // hit stun based on damage percent
-    RESPAWN_DELAY_FRAMES: 90, // 1.5 seconds
+    RESPAWN_DELAY_FRAMES: 90, 
 };
 // --- Knockback ---
 export const KNOCKBACK_CONFIG = {
@@ -145,7 +145,7 @@ export const ATTACK_DEFS = {
         },
         [AttackType.ULTIMATE]: {
             type: AttackType.ULTIMATE,
-            damage: 18,
+            damage: 200,
             knockbackBase: 8,
             knockbackMultiplier: 0.15,
             knockbackAngle: -Math.PI / 3,

@@ -28,6 +28,7 @@ const CHARACTERS: CharacterDefinition[] = [
   {
     type: CharacterType.KNIGHT,
     icon: '⚔️',
+    image: '/assets/knight/knight_idle/knight_idle1.png',
     name: 'Knight',
     role: 'Balanced Warrior',
     className: 'knight',

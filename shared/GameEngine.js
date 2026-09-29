@@ -217,6 +217,14 @@ export class GameEngine {
         player.attackTimer = attackData.duration;
         this.attackHitTargets.set(player.id, new Set());
         this.shurikensSpawned.delete(player.id);
+        if (player.character === CharacterType.ASSASSIN && type === AttackType.BASIC && player.isGrounded) {
+            const dirMult = player.direction === Direction.RIGHT ? 1 : -1;
+            player.vx = dirMult * 1.8;
+        }
+        if (player.character === CharacterType.ASSASSIN && type === AttackType.ULTIMATE) {
+            const dirMult = player.direction === Direction.RIGHT ? 1 : -1;
+            player.vx = dirMult * 6.5;
+        }
     }
     processAttack(attacker) {
         if (!attacker.attackType)
@@ -433,7 +441,7 @@ export class GameEngine {
             else {
                 if (playerRight > platLeft &&
                     playerLeft < platRight &&
-                    playerBottom > platTop &&
+                    playerBottom >= platTop &&
                     playerTop < platBottom) {
                     const overlapLeft = playerRight - platLeft;
                     const overlapRight = platRight - playerLeft;

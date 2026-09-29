@@ -72,7 +72,10 @@ export class GameRenderer {
   private assassinLandingTimers: Map<string, number> = new Map();
   private assassinPrevGrounded: Map<string, boolean> = new Map();
   private assassinThrowFrames: HTMLImageElement[] = [];
+  private assassinUltimateFrames: HTMLImageElement[] = [];
+  private assassinAttackFrames: HTMLImageElement[] = [];
   private shurikenImg: HTMLImageElement;
+  private showGuideLines: boolean = true;
   private dyingAnimations: Map<string, DyingAnimation> = new Map();
   private prevAlivePlayers: Map<string, boolean> = new Map();
   private scaledImageCache: WeakMap<HTMLImageElement, HTMLCanvasElement> = new WeakMap();
@@ -113,8 +116,8 @@ export class GameRenderer {
       this.assassinWalkFrames.push(img);
     }
 
-    // Preload Assassin idle animation frames (1 to 2)
-    for (let i = 1; i <= 2; i++) {
+    // Preload Assassin idle animation frames (1 to 6)
+    for (let i = 1; i <= 6; i++) {
       const img = new Image();
       img.src = `/assets/assasin/assasin_idle/assasin_idle${i}.png`;
       this.assassinIdleFrames.push(img);
@@ -133,6 +136,20 @@ export class GameRenderer {
       const img = new Image();
       img.src = `/assets/assasin/assasin_throw/assasin_throw${i}.png`;
       this.assassinThrowFrames.push(img);
+    }
+
+    // Preload Assassin ultimate animation frames (1 to 9)
+    for (let i = 1; i <= 9; i++) {
+      const img = new Image();
+      img.src = `/assets/assasin/assasin_ultimate/assasin_ultimate${i}.png`;
+      this.assassinUltimateFrames.push(img);
+    }
+
+    // Preload Assassin basic attack animation frames (1 to 9)
+    for (let i = 1; i <= 9; i++) {
+      const img = new Image();
+      img.src = `/assets/assasin/assasin_attack/assasin_attack${i}.png`;
+      this.assassinAttackFrames.push(img);
     }
 
     // Preload Shuriken weapon image
@@ -154,6 +171,14 @@ export class GameRenderer {
 
   setLocalPlayerId(id: string): void {
     this.localPlayerId = id;
+  }
+
+  setGuideLines(enabled: boolean): void {
+    this.showGuideLines = enabled;
+  }
+
+  getGuideLines(): boolean {
+    return this.showGuideLines;
   }
 
   private resizeCanvas(): void {
@@ -223,6 +248,11 @@ export class GameRenderer {
       if (player.isAlive && (player.hp === undefined || player.hp > 0)) {
         this.drawPlayer(player, gameState);
       }
+    }
+
+    // Training mode guide lines (distance & aim assist between local player and dummy)
+    if (this.showGuideLines && gameState.mode === 'training') {
+      this.drawTrainingGuideLines(gameState);
     }
 
     // Draw dying players with fade-out animation
@@ -401,17 +431,7 @@ export class GameRenderer {
       ctx.drawImage(this.platformMainImg, mainX, mainY, mainVisualW, mainVisualH);
       ctx.restore();
 
-      // Top ledge highlight for visual readability (Super Smash Bros style)
-      ctx.save();
-      ctx.strokeStyle = 'rgba(201, 164, 78, 0.65)';
-      ctx.lineWidth = 2.5;
-      ctx.shadowColor = '#ffd700';
-      ctx.shadowBlur = 8;
-      ctx.beginPath();
-      ctx.moveTo(154, 550);
-      ctx.lineTo(1046, 550);
-      ctx.stroke();
-      ctx.restore();
+
     } else {
       this.drawFallbackPlatform(150, 550, 900, 30, false);
     }
@@ -503,7 +523,7 @@ export class GameRenderer {
       hoverWingLeft,
       146,
       64,
-      'rgba(201, 164, 78, 0.45)',
+      'rgba(74, 158, 255, 0.45)',
     );
 
     // OUTER-RIGHT WING PLATFORM (x: 1000, y: 460, width: 130, height: 15)
@@ -516,7 +536,7 @@ export class GameRenderer {
       hoverWingRight,
       146,
       64,
-      'rgba(201, 164, 78, 0.45)',
+      'rgba(74, 158, 255, 0.45)',
     );
   }
 
@@ -551,14 +571,16 @@ export class GameRenderer {
       ctx.drawImage(img, drawX, drawY, visualW, visualH);
 
       // Top ledge highlight for crisp landing edge
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.75)';
-      ctx.lineWidth = 2;
-      ctx.shadowColor = glowColor;
-      ctx.shadowBlur = 6;
-      ctx.beginPath();
-      ctx.moveTo(physX + 4, physY + hoverOffset);
-      ctx.lineTo(physX + physW - 4, physY + hoverOffset);
-      ctx.stroke();
+      if (this.showGuideLines) {
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.75)';
+        ctx.lineWidth = 2;
+        ctx.shadowColor = glowColor;
+        ctx.shadowBlur = 6;
+        ctx.beginPath();
+        ctx.moveTo(physX + 4, physY + hoverOffset);
+        ctx.lineTo(physX + physW - 4, physY + hoverOffset);
+        ctx.stroke();
+      }
 
       ctx.restore();
     } else {
@@ -672,8 +694,7 @@ export class GameRenderer {
     ctx.fillText(`${currentHp}/${maxHp}`, player.x, player.y - halfH - 7);
     ctx.shadowBlur = 0;
 
-    // Stocks indicator
-    this.drawStocks(player.x, player.y + halfH + 12, player.stocks);
+
   }
 
   private drawCharacterIcon(character: CharacterType, x: number, y: number): void {
@@ -737,6 +758,22 @@ export class GameRenderer {
     );
   }
 
+  private areAssassinUltimateFramesLoaded(): boolean {
+    return (
+      this.assassinUltimateFrames.length > 0 &&
+      this.assassinUltimateFrames[0].complete &&
+      this.assassinUltimateFrames[0].naturalWidth > 0
+    );
+  }
+
+  private areAssassinAttackFramesLoaded(): boolean {
+    return (
+      this.assassinAttackFrames.length > 0 &&
+      this.assassinAttackFrames[0].complete &&
+      this.assassinAttackFrames[0].naturalWidth > 0
+    );
+  }
+
   private drawAssassin(player: PlayerState): void {
     const { ctx } = this;
     const halfH = PHYSICS.PLAYER_HEIGHT / 2;
@@ -765,24 +802,23 @@ export class GameRenderer {
       ctx.restore();
     }
 
-    // Golden highlight ring for local player
-    if (player.id === this.localPlayerId) {
-      ctx.save();
-      ctx.strokeStyle = '#c9a44e';
-      ctx.lineWidth = 2;
-      ctx.shadowColor = '#ffd700';
-      ctx.shadowBlur = 10;
-      ctx.beginPath();
-      ctx.ellipse(0, halfH - 1, 22, 6, 0, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.restore();
-    }
+
 
     // Select active animation frame based on motion state
     let frameImg: HTMLImageElement | undefined;
 
-    // Check if performing Assassin Ability: Shuriken Throw
+    // Check if performing Assassin Ultimate: Shadow Step
     if (
+      player.isAttacking &&
+      player.attackType === AttackType.ULTIMATE &&
+      this.areAssassinUltimateFramesLoaded()
+    ) {
+      const attackData = ATTACK_DEFS[CharacterType.ASSASSIN][AttackType.ULTIMATE];
+      const elapsed = attackData.duration - player.attackTimer;
+      const progress = Math.min(0.999, Math.max(0, elapsed / attackData.duration));
+      const frameIndex = Math.floor(progress * this.assassinUltimateFrames.length);
+      frameImg = this.assassinUltimateFrames[frameIndex];
+    } else if (
       player.isAttacking &&
       player.attackType === AttackType.ABILITY &&
       this.areAssassinThrowFramesLoaded()
@@ -792,6 +828,19 @@ export class GameRenderer {
       // 9 frames over 27 ticks (3 ticks per frame). Frame 6 (idx 5) and Frame 7 (idx 6) are the throw releases!
       const frameIndex = Math.min(8, Math.max(0, Math.floor(elapsed / 3)));
       frameImg = this.assassinThrowFrames[frameIndex];
+    } else if (
+      player.isAttacking &&
+      player.attackType === AttackType.BASIC &&
+      this.areAssassinAttackFramesLoaded()
+    ) {
+      const attackData = ATTACK_DEFS[CharacterType.ASSASSIN][AttackType.BASIC];
+      const elapsed = attackData.duration - player.attackTimer;
+      const progress = Math.min(0.999, Math.max(0, elapsed / attackData.duration));
+      const frameIndex = Math.min(
+        this.assassinAttackFrames.length - 1,
+        Math.floor(progress * this.assassinAttackFrames.length)
+      );
+      frameImg = this.assassinAttackFrames[frameIndex];
     } else if (!player.isGrounded) {
       // --- AIRBORNE / JUMP ANIMATION ---
       this.assassinLandingTimers.set(player.id, 0);
@@ -834,12 +883,12 @@ export class GameRenderer {
         // LANDING IMPACT: frame 7 (recovery crouch)
         frameImg = this.assassinJumpFrames[7] || this.assassinIdleFrames[0];
       } else {
-        // IDLE: Slower, gentle breathing animation (distinctly slower than walking)
+        // IDLE: Calm, natural breathing animation cycling across 6 frames (~2.4s full breath cycle)
         let idleTick = (this.assassinIdleTicks.get(player.id) || 0) + 1;
         this.assassinIdleTicks.set(player.id, idleTick);
 
-        // Cycle idle frames every 52 render ticks (~860ms per frame, calm and deliberate)
-        const idleIndex = Math.floor(idleTick / 52) % Math.max(1, this.assassinIdleFrames.length);
+        // Cycle idle frames every 24 render ticks (~400ms per frame, full breath cycle 2.4s)
+        const idleIndex = Math.floor(idleTick / 24) % Math.max(1, this.assassinIdleFrames.length);
         frameImg = this.assassinIdleFrames[idleIndex];
       }
     }
@@ -860,6 +909,10 @@ export class GameRenderer {
     const drawY = halfH - drawHeight * 0.988;
     const drawX = -drawWidth / 2;
 
+    const currentDrawWidth = frameImg.naturalHeight > 0
+      ? Math.round(frameImg.naturalWidth * (drawHeight / frameImg.naturalHeight))
+      : drawWidth;
+
     ctx.save();
 
     // Flip horizontally when facing Direction.LEFT
@@ -868,8 +921,18 @@ export class GameRenderer {
       ctx.scale(-1, 1);
     }
 
+    // Shadow afterimage for Assassin Ultimate (Shadow Step)
+    if (player.isAttacking && player.attackType === AttackType.ULTIMATE) {
+      ctx.save();
+      ctx.globalAlpha = 0.35;
+      ctx.drawImage(this.getOptimizedImage(frameImg), drawX - 10, drawY, currentDrawWidth, drawHeight);
+      ctx.globalAlpha = 0.18;
+      ctx.drawImage(this.getOptimizedImage(frameImg), drawX - 20, drawY, currentDrawWidth, drawHeight);
+      ctx.restore();
+    }
+
     // Draw active animation frame (using pre-scaled cache for high-res assets)
-    ctx.drawImage(this.getOptimizedImage(frameImg), drawX, drawY, drawWidth, drawHeight);
+    ctx.drawImage(this.getOptimizedImage(frameImg), drawX, drawY, currentDrawWidth, drawHeight);
 
     ctx.restore();
   }
@@ -929,6 +992,15 @@ export class GameRenderer {
       return;
     }
 
+    // Assassin Basic Attack is fully animated with custom dagger slash sprite frames
+    if (
+      player.character === CharacterType.ASSASSIN &&
+      player.attackType === AttackType.BASIC &&
+      this.areAssassinAttackFramesLoaded()
+    ) {
+      return;
+    }
+
     const attackData = ATTACK_DEFS[player.character][player.attackType];
     const dirMult = player.direction === Direction.RIGHT ? 1 : -1;
 
@@ -943,7 +1015,9 @@ export class GameRenderer {
     if (player.attackType === AttackType.ABILITY) {
       attackColor = 'rgba(100, 200, 255, 0.6)';
     } else if (player.attackType === AttackType.ULTIMATE) {
-      attackColor = 'rgba(255, 200, 50, 0.7)';
+      attackColor = player.character === CharacterType.ASSASSIN
+        ? 'rgba(168, 85, 247, 0.75)'
+        : 'rgba(255, 200, 50, 0.7)';
     }
 
     ctx.fillStyle = attackColor;
@@ -978,22 +1052,50 @@ export class GameRenderer {
     ctx.globalAlpha = 1;
   }
 
-  private drawStocks(x: number, y: number, stocks: number): void {
-    const { ctx } = this;
-    const stockSize = 6;
-    const spacing = 14;
-    const startX = x - ((stocks - 1) * spacing) / 2;
+  private drawTrainingGuideLines(gameState: GameState): void {
+    const local = gameState.players.find((p) => p.id === this.localPlayerId);
+    if (!local || !local.isAlive) return;
 
-    for (let i = 0; i < stocks; i++) {
-      ctx.fillStyle = '#ffd700';
-      ctx.shadowColor = '#ffd700';
-      ctx.shadowBlur = 4;
+    const { ctx } = this;
+    for (const player of gameState.players) {
+      if (player.id === this.localPlayerId || !player.isAlive) continue;
+
+      const dx = player.x - local.x;
+      const dy = player.y - local.y;
+      const dist = Math.round(Math.hypot(dx, dy));
+
+      ctx.save();
+      // Distance line connecting player and sparring dummy
+      ctx.strokeStyle = 'rgba(74, 158, 255, 0.45)';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 6]);
       ctx.beginPath();
-      ctx.arc(startX + i * spacing, y, stockSize, 0, Math.PI * 2);
+      ctx.moveTo(local.x, local.y);
+      ctx.lineTo(player.x, player.y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Distance badge floating at midpoint
+      const midX = (local.x + player.x) / 2;
+      const midY = (local.y + player.y) / 2 - 12;
+      ctx.fillStyle = 'rgba(12, 16, 26, 0.85)';
+      this.roundRect(midX - 26, midY - 9, 52, 18, 4);
       ctx.fill();
-      ctx.shadowBlur = 0;
+      ctx.strokeStyle = 'rgba(74, 158, 255, 0.6)';
+      ctx.lineWidth = 1;
+      this.roundRect(midX - 26, midY - 9, 52, 18, 4);
+      ctx.stroke();
+
+      ctx.fillStyle = '#60a5fa';
+      ctx.font = 'bold 10px monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`${dist}px`, midX, midY);
+      ctx.restore();
     }
   }
+
+
 
   private getHpColor(hp: number, maxHp: number = 200): string {
     const pct = (hp / maxHp) * 100;

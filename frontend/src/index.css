@@ -1998,6 +1998,18 @@ html, body, #root {
   gap: 6px;
 }
 
+.drawer-btn-group-2 {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+}
+
+.drawer-btn-group-2x2 {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+}
+
 .drawer-action-btn {
   width: 100%;
   text-align: center;

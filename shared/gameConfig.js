@@ -2,6 +2,36 @@
 // Brawl Impact - Shared Game Configuration
 // ============================================================
 import { CharacterType, AttackType } from './types';
+// --- Game Modes ---
+export const GAME_MODES = {
+    training: {
+        mode: 'training',
+        name: 'Training Grounds',
+        maxPlayers: 1,
+        minPlayers: 1,
+        stocks: 99,
+        allowRespawn: true,
+        damageResetOnRespawn: true,
+    },
+    '1v1': {
+        mode: '1v1',
+        name: '1v1 Duel',
+        maxPlayers: 2,
+        minPlayers: 2,
+        stocks: 3,
+        allowRespawn: true,
+        damageResetOnRespawn: true,
+    },
+    ffa: {
+        mode: 'ffa',
+        name: 'Free For All',
+        maxPlayers: 4,
+        minPlayers: 2,
+        stocks: 3,
+        allowRespawn: true,
+        damageResetOnRespawn: true,
+    },
+};
 // --- Physics ---
 export const PHYSICS = {
     GRAVITY: 0.6,
@@ -35,7 +65,7 @@ export const KNOCKBACK_CONFIG = {
 export const CHARACTER_STATS = {
     [CharacterType.KNIGHT]: {
         maxHp: 200,
-        moveSpeed: 4.5,
+        moveSpeed: 3.5,
         jumpForce: -15.2,
         attackDamage: 12,
         knockbackPower: 1.2,
@@ -46,7 +76,7 @@ export const CHARACTER_STATS = {
     },
     [CharacterType.MAGE]: {
         maxHp: 200,
-        moveSpeed: 3.8,
+        moveSpeed: 3.0,
         jumpForce: -14.8,
         attackDamage: 10,
         knockbackPower: 1.0,
@@ -57,7 +87,7 @@ export const CHARACTER_STATS = {
     },
     [CharacterType.ASSASSIN]: {
         maxHp: 200,
-        moveSpeed: 6.0,
+        moveSpeed: 4.6,
         jumpForce: -16.5,
         attackDamage: 8,
         knockbackPower: 0.8,
@@ -68,7 +98,7 @@ export const CHARACTER_STATS = {
     },
     [CharacterType.FIGHTER]: {
         maxHp: 200,
-        moveSpeed: 4.0,
+        moveSpeed: 3.2,
         jumpForce: -15.0,
         attackDamage: 14,
         knockbackPower: 1.4,
@@ -320,6 +350,38 @@ export const ARENA_MVP = {
             height: 15,
             isPassthrough: true,
         },
+        // Upper-left high platform
+        {
+            x: 180,
+            y: 240,
+            width: 180,
+            height: 15,
+            isPassthrough: true,
+        },
+        // Upper-right high platform
+        {
+            x: 840,
+            y: 240,
+            width: 180,
+            height: 15,
+            isPassthrough: true,
+        },
+        // Outer-left wing platform
+        {
+            x: 70,
+            y: 460,
+            width: 130,
+            height: 15,
+            isPassthrough: true,
+        },
+        // Outer-right wing platform
+        {
+            x: 1000,
+            y: 460,
+            width: 130,
+            height: 15,
+            isPassthrough: true,
+        },
     ],
     deathBounds: {
         left: -200,
@@ -348,4 +410,3 @@ export const CHARACTER_ABILITIES = {
     [CharacterType.ASSASSIN]: { basic: 'Quick Slash', ability: 'Shuriken Throw', ultimate: 'Shadow Step' },
     [CharacterType.FIGHTER]: { basic: 'Punch', ability: 'Uppercut', ultimate: 'Ground Slam' },
 };
-//# sourceMappingURL=gameConfig.js.map

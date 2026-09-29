@@ -1,0 +1,52 @@
+import { PlayerState, GameState, GamePhase, ArenaConfig, PlayerInput, CharacterType, HitEffect, GameResult, GameMode } from './types';
+export declare class GameEngine {
+    private players;
+    private arena;
+    private mode;
+    private phase;
+    private countdown;
+    private tick;
+    private winnerId;
+    private hitEffects;
+    private eliminationOrder;
+    private damageDealt;
+    private lastAttacker;
+    private respawnTimers;
+    private attackHitTargets;
+    private projectiles;
+    private shurikensSpawned;
+    onHit?: (effect: HitEffect) => void;
+    onElimination?: (playerId: string, eliminatedBy: string | null) => void;
+    onGameOver?: (result: GameResult) => void;
+    constructor(playerInfos: Array<{
+        id: string;
+        nickname: string;
+        character: CharacterType;
+    }>, mode?: GameMode);
+    reset(customSpawns?: Map<string, {
+        x: number;
+        y: number;
+    }>): void;
+    update(inputs: Map<string, PlayerInput>): void;
+    private updateTimers;
+    private processInput;
+    private startAttack;
+    private processAttack;
+    private spawnShuriken;
+    private updateProjectiles;
+    private applyProjectileHit;
+    private applyHit;
+    private applyPhysics;
+    private checkPlatformCollisions;
+    private checkDeathBounds;
+    private eliminateStock;
+    private respawnPlayer;
+    private checkWinCondition;
+    getGameResult(): GameResult;
+    getState(): GameState;
+    getHitEffects(): HitEffect[];
+    getPhase(): GamePhase;
+    getPlayer(id: string): PlayerState | undefined;
+    getArena(): ArenaConfig;
+    getMode(): GameMode;
+}

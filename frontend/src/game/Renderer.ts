@@ -423,6 +423,10 @@ export class GameRenderer {
     const hoverLeft = Math.sin(now * 0.0018) * 2;
     const hoverRight = Math.sin(now * 0.0018 + Math.PI) * 2;
     const hoverTop = Math.sin(now * 0.0015 + 1.2) * 2.5;
+    const hoverUpperLeft = Math.sin(now * 0.002 + 0.8) * 2;
+    const hoverUpperRight = Math.sin(now * 0.002 + Math.PI + 0.8) * 2;
+    const hoverWingLeft = Math.sin(now * 0.0016 + 2.1) * 1.8;
+    const hoverWingRight = Math.sin(now * 0.0016 + Math.PI + 2.1) * 1.8;
 
     // LEFT FLOATING PLATFORM (x: 220, y: 400, width: 200, height: 15)
     this.drawFloatingPlatform(
@@ -461,6 +465,58 @@ export class GameRenderer {
       264,
       78,
       'rgba(168, 85, 247, 0.45)',
+    );
+
+    // UPPER-LEFT HIGH PLATFORM (x: 180, y: 240, width: 180, height: 15)
+    this.drawFloatingPlatform(
+      this.platformLeftImg,
+      180,
+      240,
+      180,
+      15,
+      hoverUpperLeft,
+      196,
+      86,
+      'rgba(74, 158, 255, 0.45)',
+    );
+
+    // UPPER-RIGHT HIGH PLATFORM (x: 840, y: 240, width: 180, height: 15)
+    this.drawFloatingPlatform(
+      this.platformRightImg,
+      840,
+      240,
+      180,
+      15,
+      hoverUpperRight,
+      196,
+      86,
+      'rgba(74, 158, 255, 0.45)',
+    );
+
+    // OUTER-LEFT WING PLATFORM (x: 70, y: 460, width: 130, height: 15)
+    this.drawFloatingPlatform(
+      this.platformTopImg,
+      70,
+      460,
+      130,
+      15,
+      hoverWingLeft,
+      146,
+      64,
+      'rgba(201, 164, 78, 0.45)',
+    );
+
+    // OUTER-RIGHT WING PLATFORM (x: 1000, y: 460, width: 130, height: 15)
+    this.drawFloatingPlatform(
+      this.platformTopImg,
+      1000,
+      460,
+      130,
+      15,
+      hoverWingRight,
+      146,
+      64,
+      'rgba(201, 164, 78, 0.45)',
     );
   }
 

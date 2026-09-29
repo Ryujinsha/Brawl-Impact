@@ -1,4 +1,5 @@
-import { CharacterType, CharacterStats, ArenaConfig, AttackData, AttackType } from './types';
+import { CharacterType, CharacterStats, ArenaConfig, AttackData, AttackType, GameMode, MatchConfig } from './types';
+export declare const GAME_MODES: Record<GameMode, MatchConfig>;
 export declare const PHYSICS: {
     readonly GRAVITY: 0.6;
     readonly MAX_FALL_SPEED: 15;
@@ -38,4 +39,3 @@ export declare const CHARACTER_ABILITIES: Record<CharacterType, {
     ability: string;
     ultimate: string;
 }>;
-//# sourceMappingURL=gameConfig.d.ts.map

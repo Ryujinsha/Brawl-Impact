@@ -55,4 +55,3 @@ export var ServerEvent;
     ServerEvent["ROOM_CREATED"] = "room:created";
     ServerEvent["COUNTDOWN_TICK"] = "countdown:tick";
 })(ServerEvent || (ServerEvent = {}));
-//# sourceMappingURL=types.js.map

@@ -69,26 +69,39 @@ export function GameHUD({ gameState, localPlayerId }: GameHUDProps) {
                     }}
                   />
                 </div>
-                {/* Stock life shields and status */}
+                {/* Stock life shields or training mode indicator */}
                 <div className="hud-stocks-row">
-                  <div className="hud-shields-group">
-                    {Array.from({ length: GAME_CONFIG.STOCKS_PER_PLAYER }).map((_, i) => (
-                      <span
-                        key={i}
-                        className={`stock-shield ${i >= player.stocks ? 'lost' : 'active'}`}
-                      >
-                        {i >= player.stocks ? '⛊' : '🛡'}
+                  {gameState.mode === 'training' ? (
+                    <>
+                      <div className="hud-shields-group">
+                        <span style={{ fontSize: 10, color: 'var(--accent-gold)', letterSpacing: 1 }}>PRACTICE</span>
+                      </div>
+                      <span className="hud-hp-percent-label" style={{ color: hpColor, fontWeight: 'bold' }}>
+                        {player.damagePercent}% DMG
                       </span>
-                    ))}
-                  </div>
-                  {isEliminated ? (
-                    <span className="hud-fallen-label">FALLEN</span>
-                  ) : currentHp <= 0 ? (
-                    <span className="hud-fallen-label status-dying">DYING</span>
+                    </>
                   ) : (
-                    <span className="hud-hp-percent-label" style={{ color: hpColor }}>
-                      {Math.round(barWidth)}%
-                    </span>
+                    <>
+                      <div className="hud-shields-group">
+                        {Array.from({ length: GAME_CONFIG.STOCKS_PER_PLAYER }).map((_, i) => (
+                          <span
+                            key={i}
+                            className={`stock-shield ${i >= player.stocks ? 'lost' : 'active'}`}
+                          >
+                            {i >= player.stocks ? '⛊' : '🛡'}
+                          </span>
+                        ))}
+                      </div>
+                      {isEliminated ? (
+                        <span className="hud-fallen-label">FALLEN</span>
+                      ) : currentHp <= 0 ? (
+                        <span className="hud-fallen-label status-dying">DYING</span>
+                      ) : (
+                        <span className="hud-hp-percent-label" style={{ color: hpColor }}>
+                          {player.damagePercent}% DMG
+                        </span>
+                      )}
+                    </>
                   )}
                 </div>
               </div>

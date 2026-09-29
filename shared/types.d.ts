@@ -6,6 +6,16 @@ export declare enum GamePhase {
     GAME_OVER = "GAME_OVER",
     RESULT = "RESULT"
 }
+export type GameMode = 'training' | '1v1' | 'ffa';
+export interface MatchConfig {
+    mode: GameMode;
+    name: string;
+    maxPlayers: number;
+    minPlayers: number;
+    stocks: number;
+    allowRespawn: boolean;
+    damageResetOnRespawn: boolean;
+}
 export declare enum CharacterType {
     KNIGHT = "KNIGHT",
     MAGE = "MAGE",
@@ -99,6 +109,7 @@ export interface RoomState {
     hostId: string;
     phase: GamePhase;
     maxPlayers: number;
+    mode?: GameMode;
 }
 export interface GameState {
     phase: GamePhase;
@@ -108,10 +119,14 @@ export interface GameState {
     winnerId: string | null;
     arenaId: string;
     tick: number;
+    mode?: GameMode;
 }
 export interface GameResult {
     winnerId: string;
     winnerNickname: string;
+    winnerCharacter?: CharacterType;
+    winnerStocksRemaining?: number;
+    mode?: GameMode;
     rankings: Array<{
         playerId: string;
         nickname: string;
@@ -119,6 +134,7 @@ export interface GameResult {
         placement: number;
         damageDealt: number;
         eliminatedBy: string | null;
+        stocksRemaining?: number;
     }>;
 }
 export interface Platform {
@@ -205,6 +221,7 @@ export interface JoinPayload {
 export interface CreateRoomPayload {
     nickname: string;
     character: CharacterType;
+    mode?: GameMode;
 }
 export interface JoinRoomPayload {
     roomCode: string;
@@ -218,4 +235,3 @@ export interface InputPayload {
     input: PlayerInput;
     timestamp: number;
 }
-//# sourceMappingURL=types.d.ts.map

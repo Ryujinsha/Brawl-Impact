@@ -54,11 +54,12 @@ export class SocketHandler {
     // Create Room
     socket.on(ClientEvent.ROOM_CREATE, (payload: CreateRoomPayload) => {
       try {
-        const room = this.roomManager.createRoom(socket.id, payload.nickname, payload.character);
+        const mode = payload.mode || 'ffa';
+        const room = this.roomManager.createRoom(socket.id, payload.nickname, payload.character, mode);
         socket.join(room.code);
         const roomState = this.roomManager.getRoomState(room);
         socket.emit(ServerEvent.ROOM_CREATED, roomState);
-        console.log(`[Room] Created: ${room.code} by ${payload.nickname}`);
+        console.log(`[Room] Created: ${room.code} [${mode}] by ${payload.nickname}`);
       } catch (err) {
         console.error('[Room] Failed to create room:', err);
         socket.emit(ServerEvent.ERROR, { message: 'Failed to create room' });

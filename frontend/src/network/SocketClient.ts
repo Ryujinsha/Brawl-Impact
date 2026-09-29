@@ -16,6 +16,7 @@ import {
   JoinRoomPayload,
   SelectCharacterPayload,
   InputPayload,
+  GameMode,
 } from '@shared/types';
 
 type EventCallback = (...args: unknown[]) => void;
@@ -67,8 +68,8 @@ class SocketClient {
 
   // --- Room Actions ---
 
-  createRoom(nickname: string, character: CharacterType): void {
-    const payload: CreateRoomPayload = { nickname, character };
+  createRoom(nickname: string, character: CharacterType, mode?: GameMode): void {
+    const payload: CreateRoomPayload = { nickname, character, mode };
     this.socket?.emit(ClientEvent.ROOM_CREATE, payload);
   }
 

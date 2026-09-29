@@ -11,8 +11,9 @@ import {
   GameState,
   GameResult,
   HitEffect,
+  GameMode,
 } from '../../../shared/types.js';
-import { GAME_CONFIG } from '../../../shared/gameConfig.js';
+import { GAME_CONFIG, GAME_MODES } from '../../../shared/gameConfig.js';
 import { ServerGameEngine } from '../game/GameEngine.js';
 
 export interface Room {
@@ -21,6 +22,7 @@ export interface Room {
   hostId: string;
   phase: GamePhase;
   maxPlayers: number;
+  mode: GameMode;
   gameEngine: ServerGameEngine | null;
   gameLoopInterval: ReturnType<typeof setInterval> | null;
   inputs: Map<string, PlayerInput>;
@@ -48,7 +50,7 @@ export class RoomManager {
     return code;
   }
 
-  createRoom(hostId: string, nickname: string, character: CharacterType): Room {
+  createRoom(hostId: string, nickname: string, character: CharacterType, mode: GameMode = 'ffa'): Room {
     const code = this.generateRoomCode();
     const hostInfo: PlayerInfo = {
       id: hostId,
@@ -58,12 +60,15 @@ export class RoomManager {
       isHost: true,
     };
 
+    const maxPlayers = mode === '1v1' ? 2 : GAME_CONFIG.MAX_PLAYERS;
+
     const room: Room = {
       code,
       players: new Map([[hostId, hostInfo]]),
       hostId,
       phase: GamePhase.ROOM,
-      maxPlayers: GAME_CONFIG.MAX_PLAYERS,
+      maxPlayers,
+      mode,
       gameEngine: null,
       gameLoopInterval: null,
       inputs: new Map(),
@@ -71,7 +76,7 @@ export class RoomManager {
 
     this.rooms.set(code, room);
     this.playerRooms.set(hostId, code);
-    this.syncRoomToLaravel(code, nickname, 1, 'waiting');
+    this.syncRoomToLaravel(code, nickname, 1, 'waiting', maxPlayers);
     return room;
   }
 
@@ -181,10 +186,21 @@ export class RoomManager {
     const room = this.rooms.get(roomCode);
     if (!room) return { canStart: false, reason: 'Room not found' };
     if (room.hostId !== requesterId) return { canStart: false, reason: 'Not the host' };
-    if (room.players.size < GAME_CONFIG.MIN_PLAYERS) {
-      return { canStart: false, reason: `Need at least ${GAME_CONFIG.MIN_PLAYERS} players` };
-    }
     if (room.phase !== GamePhase.ROOM) return { canStart: false, reason: 'Game already started' };
+
+    if (room.mode === '1v1') {
+      if (room.players.size !== 2) {
+        return { canStart: false, reason: '1v1 requires exactly 2 warriors' };
+      }
+      const nonHost = Array.from(room.players.values()).find((p) => !p.isHost);
+      if (nonHost && !nonHost.isReady) {
+        return { canStart: false, reason: 'Challenger is not ready for duel' };
+      }
+    } else {
+      if (room.players.size < GAME_CONFIG.MIN_PLAYERS) {
+        return { canStart: false, reason: `Need at least ${GAME_CONFIG.MIN_PLAYERS} players` };
+      }
+    }
 
     return { canStart: true };
   }
@@ -196,14 +212,14 @@ export class RoomManager {
     // Ensure any prior game loop is cleared
     this.stopGameLoop(room);
 
-    // Create game engine with player info
+    // Create game engine with player info and mode
     const playerInfos = Array.from(room.players.values()).map((p) => ({
       id: p.id,
       nickname: p.nickname,
       character: p.character,
     }));
 
-    room.gameEngine = new ServerGameEngine(playerInfos);
+    room.gameEngine = new ServerGameEngine(playerInfos, room.mode);
     room.phase = GamePhase.COUNTDOWN;
     room.inputs = new Map();
 
@@ -305,10 +321,11 @@ export class RoomManager {
       hostId: room.hostId,
       phase: room.phase,
       maxPlayers: room.maxPlayers,
+      mode: room.mode,
     };
   }
 
-  private syncRoomToLaravel(code: string, hostNickname: string, currentPlayers: number, status: string): void {
+  private syncRoomToLaravel(code: string, hostNickname: string, currentPlayers: number, status: string, maxPlayers: number = 4): void {
     const LARAVEL_API = process.env.LARAVEL_API || 'http://localhost:8000/api';
     fetch(`${LARAVEL_API}/rooms`, {
       method: 'POST',
@@ -318,6 +335,7 @@ export class RoomManager {
         host_nickname: hostNickname,
         current_players: currentPlayers,
         status,
+        max_players: maxPlayers,
       }),
     }).catch(() => {});
   }
